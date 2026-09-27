@@ -466,7 +466,7 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  const url = `https://t.me/ProgramLiveBot/app?startapp=${programId}`;
+  const url = `https://programlive-tg.onrender.com/?id=${programId}`;
   const text = state.title || "Програма Служіння";
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
   

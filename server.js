@@ -10,6 +10,7 @@ const os = require('os');
 
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
 
 let serviceAccount;
 try {
@@ -30,26 +31,21 @@ try {
   process.exit(1);
 }
 
-initializeApp({ credential: cert(serviceAccount) });
+initializeApp({ 
+  credential: cert(serviceAccount),
+  storageBucket: serviceAccount.project_id + '.appspot.com' 
+});
 const db = getFirestore();
+const bucket = getStorage().bucket();
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const UPLOAD_DIR = path.join(os.tmpdir(), 'programlive_uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    const ext = path.extname(file.originalname);
-    cb(null, unique + ext);
-  }
+const upload = multer({ 
+  storage: multer.memoryStorage(), 
+  limits: { fileSize: 20 * 1024 * 1024 } 
 });
-
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/files', express.static(UPLOAD_DIR));
@@ -94,33 +90,61 @@ async function updateProgramState(programId, stateUpdates) {
 app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { programId, itemId } = req.params;
-  const fileUrl = `/files/${req.file.filename}`;
   const fileName = req.body.customName || req.file.originalname;
   const fileType = req.file.mimetype;
+  const uniqueId = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const ext = path.extname(req.file.originalname);
+  const storagePath = `programs/${programId}/${itemId}/${uniqueId}${ext}`;
 
-  let data = await getProgramData(programId);
-  let state = data.state;
-  const itemIndex = state.items.findIndex(i => i.id === itemId);
-  if (itemIndex !== -1) {
-    if (!state.items[itemIndex].attachments) state.items[itemIndex].attachments = [];
-    state.items[itemIndex].attachments.push({ url: fileUrl, name: fileName, type: fileType });
-    state = await updateProgramState(programId, { items: state.items });
-    io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
+  try {
+    const fileRef = bucket.file(storagePath);
+    await fileRef.save(req.file.buffer, {
+      metadata: { contentType: fileType }
+    });
+    // Make file public to get a direct URL (or get a signed URL if bucket doesn't allow public access).
+    // Using makePublic() is easier for Telegram Mini Apps viewing public chords.
+    await fileRef.makePublic();
+    const fileUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+
+    let data = await getProgramData(programId);
+    let state = data.state;
+    const itemIndex = state.items.findIndex(i => i.id === itemId);
+    if (itemIndex !== -1) {
+      if (!state.items[itemIndex].attachments) state.items[itemIndex].attachments = [];
+      state.items[itemIndex].attachments.push({ url: fileUrl, storagePath, name: fileName, type: fileType });
+      state = await updateProgramState(programId, { items: state.items });
+      io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
+    }
+    res.json({ ok: true, url: fileUrl, name: fileName });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({ error: "Failed to upload" });
   }
-  res.json({ ok: true, url: fileUrl, name: fileName });
 });
 
 // Delete file endpoint
 app.delete('/upload/:programId/:itemId/:filename', async (req, res) => {
-  const { programId, itemId, filename } = req.params;
+  const { programId, itemId } = req.params;
+  // Note: we can't easily rely on filename anymore if it's a full URL.
+  // The frontend passes the URL or filename. Let's look up the storagePath.
+  const queryFilename = req.params.filename; 
+
   let data = await getProgramData(programId);
   let state = data.state;
   const itemIndex = state.items.findIndex(i => i.id === itemId);
+  
   if (itemIndex !== -1 && state.items[itemIndex].attachments) {
-    state.items[itemIndex].attachments = state.items[itemIndex].attachments.filter(a => !a.url.includes(filename));
-    state = await updateProgramState(programId, { items: state.items });
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, filename)); } catch (e) { }
-    io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
+    const attachment = state.items[itemIndex].attachments.find(a => a.url.includes(queryFilename) || (a.storagePath && a.storagePath.includes(queryFilename)));
+    
+    if (attachment) {
+      state.items[itemIndex].attachments = state.items[itemIndex].attachments.filter(a => a !== attachment);
+      state = await updateProgramState(programId, { items: state.items });
+      io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
+      
+      if (attachment.storagePath) {
+        try { await bucket.file(attachment.storagePath).delete(); } catch(e) { console.error("Firebase delete error:", e); }
+      }
+    }
   }
   res.json({ ok: true });
 });
