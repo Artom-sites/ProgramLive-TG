@@ -55,10 +55,7 @@ const DEFAULT_STATE = {
   isLive: false,
   liveStartTime: null,
   activeItemIndex: 0,
-  items: [
-    { id: "1", type: "prayer", title: "Вступне слово, молитва", duration: 600, assignee: "Служитель", cues: { sound: "Мікрофон кафедра" }, content: null, attachments: [] },
-    { id: "2", type: "music", title: "«Пам'ятай шлях»", duration: 600, assignee: "Загальний спів", cues: { media: "Текст пісні" }, content: null, attachments: [] }
-  ]
+  items: []
 };
 
 // Database Helpers

@@ -225,7 +225,16 @@ body {
 
 .form-group-modern { display: flex; flex-direction: column; margin-bottom: 16px; }
 .form-group-modern label { font-size: 13px; font-weight: 600; color: var(--tg-hint); margin-bottom: 6px; }
-.form-group-modern input, .form-group-modern select, .form-group-modern textarea { padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--tg-text); font-size: 16px; outline: none; transition: border-color 0.2s; }
+.form-group-modern input, .form-group-modern select, .form-group-modern textarea { padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--tg-text); font-size: 16px; outline: none; transition: border-color 0.2s; width: 100%; box-sizing: border-box; }
+.form-group-modern select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%23888" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position-x: calc(100% - 12px);
+  background-position-y: center;
+  padding-right: 40px;
+}
 .form-group-modern input:focus, .form-group-modern select:focus, .form-group-modern textarea:focus { border-color: var(--tg-btn); }
 .advanced-settings { border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
 .advanced-settings summary { font-weight: 600; color: var(--tg-text); cursor: pointer; outline: none; }
