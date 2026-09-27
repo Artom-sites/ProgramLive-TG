@@ -48,7 +48,6 @@ const upload = multer({
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/files', express.static(UPLOAD_DIR));
 
 // Base Default State for new programs
 const DEFAULT_STATE = {
