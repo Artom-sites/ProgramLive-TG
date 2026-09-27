@@ -355,10 +355,16 @@ if (BOT_TOKEN) {
     const page = parseInt(ctx.match[1]);
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const userId = ctx.from.id;
+
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('uk-UA');
+    const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    newState.title = `Програма ${dateStr}`;
+
     await db.collection('programs').doc(newId).set({
       ownerId: userId,
       admins: [userId],
-      state: DEFAULT_STATE
+      state: newState
     });
     
     await ctx.answerCbQuery("✅ Програму створено!");
@@ -383,10 +389,17 @@ if (BOT_TOKEN) {
   bot.hears("➕ Створити програму", async (ctx) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const userId = ctx.from.id;
+    
+    // Create a dynamic title based on date
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('uk-UA');
+    const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    newState.title = `Програма ${dateStr}`;
+
     await db.collection('programs').doc(newId).set({
       ownerId: userId,
       admins: [userId],
-      state: DEFAULT_STATE
+      state: newState
     });
     await ctx.reply("✅ Програму створено!").catch(()=>null);
     await sendDashboard(ctx, 0, 'view', false);
@@ -397,7 +410,14 @@ if (BOT_TOKEN) {
     await sendDashboard(ctx, 0, 'view', false);
   });
 
-  bot.launch();
+  // Use webhooks instead of long-polling to prevent double-process ghosting on Render
+  const WEBHOOK_URL = 'https://programlive-tg.onrender.com/bot_webhook';
+  app.use(bot.webhookCallback('/bot_webhook'));
+  bot.telegram.setWebhook(WEBHOOK_URL).then(() => {
+    console.log("Webhook set to", WEBHOOK_URL);
+  });
+  
+  // Removed bot.launch() to prevent polling conflicts
 }
 
 // Background cleanup task (runs daily)
