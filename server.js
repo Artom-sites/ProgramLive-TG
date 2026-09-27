@@ -107,7 +107,13 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
     const itemIndex = state.items.findIndex(i => i.id === itemId);
     if (itemIndex !== -1) {
       if (!state.items[itemIndex].attachments) state.items[itemIndex].attachments = [];
-      state.items[itemIndex].attachments.push({ url: fileUrl, storagePath, name: fileName, type: fileType });
+      state.items[itemIndex].attachments.push({ 
+        url: fileUrl, 
+        storagePath, 
+        name: fileName, 
+        type: fileType,
+        uploadedAt: Date.now()
+      });
       state = await updateProgramState(programId, { items: state.items });
       io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
     }
@@ -393,6 +399,52 @@ if (BOT_TOKEN) {
 
   bot.launch();
 }
+
+// Background cleanup task (runs daily)
+// Deletes files older than 48 hours to save storage and keep things clean
+async function cleanupExpiredFiles() {
+  console.log("Running background cleanup for expired attachments...");
+  const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
+  
+  try {
+    const snapshot = await db.collection('programs').get();
+    for (const doc of snapshot.docs) {
+      let data = doc.data();
+      let state = data.state;
+      let changed = false;
+      
+      if (state && state.items) {
+        state.items.forEach(item => {
+          if (item.attachments && item.attachments.length > 0) {
+            const validAttachments = item.attachments.filter(a => {
+              // Only delete if it has a timestamp and is older than 48h
+              if (a.uploadedAt && a.uploadedAt < twoDaysAgo) {
+                if (a.storagePath) {
+                  bucket.file(a.storagePath).delete().catch(() => null);
+                }
+                return false;
+              }
+              return true;
+            });
+            if (validAttachments.length !== item.attachments.length) {
+              item.attachments = validAttachments;
+              changed = true;
+            }
+          }
+        });
+      }
+      if (changed) {
+        await db.collection('programs').doc(doc.id).update({ state });
+      }
+    }
+  } catch(e) {
+    console.error("Cleanup error:", e);
+  }
+}
+
+// Run cleanup on startup and every 12 hours
+cleanupExpiredFiles();
+setInterval(cleanupExpiredFiles, 12 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 RUNNING ON PORT ${PORT}`));
