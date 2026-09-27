@@ -10,7 +10,8 @@ if (tg) {
 }
 
 const programId = tg?.initDataUnsafe?.start_param || 'default';
-const socket = io({ query: { programId } });
+const userId = tg?.initDataUnsafe?.user?.id || 0;
+const socket = io({ query: { programId, userId } });
 
 let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null };
 let serverTimeOffset = 0;
@@ -19,7 +20,6 @@ let timerInterval = null;
 let expandedItems = new Set();
 
 const els = {
-  roleToggle: document.getElementById('roleToggle'),
   liveBadge: document.getElementById('liveBadge'),
   timeline: document.getElementById('timeline'),
   bottomBar: document.getElementById('bottomBar'),
@@ -61,6 +61,17 @@ function getFileIcon(mime) {
 }
 
 // ── Socket ──
+socket.on('init', (data) => {
+  state = data.state;
+  isAdmin = data.isAdmin;
+  serverTimeOffset = Date.now() - data.serverTime;
+  
+  if (isAdmin) els.bottomBar.classList.remove('hidden');
+  else els.bottomBar.classList.add('hidden');
+  
+  render();
+});
+
 socket.on('stateUpdate', (newState) => {
   state = newState;
   serverTimeOffset = Date.now() - state.serverTime;
@@ -396,16 +407,6 @@ els.btnSaveEdit.onclick = () => {
   });
   els.editModal.classList.remove('open');
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-};
-
-// ── Admin Toggle ──
-els.roleToggle.onclick = () => {
-  isAdmin = !isAdmin;
-  els.roleToggle.textContent = isAdmin ? "АДМІН" : "ГЛЯДАЧ";
-  els.roleToggle.classList.toggle('admin-active', isAdmin);
-  if (isAdmin) els.bottomBar.classList.remove('hidden');
-  else els.bottomBar.classList.add('hidden');
-  render();
 };
 
 // ── Live Controls ──

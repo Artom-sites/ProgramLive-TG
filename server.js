@@ -65,17 +65,27 @@ const DEFAULT_STATE = {
   ]
 };
 
-// Database Helpers
-async function getProgramState(programId) {
+async function getProgramData(programId) {
   const doc = await db.collection('programs').doc(programId).get();
-  if (doc.exists) return doc.data();
-  await db.collection('programs').doc(programId).set(DEFAULT_STATE);
-  return DEFAULT_STATE;
+  if (doc.exists) {
+    const data = doc.data();
+    // Legacy migration check: if there is no 'state' field, assume the whole doc is the state
+    if (data.items && !data.state) {
+      return { ownerId: null, admins: [], state: data };
+    }
+    return data;
+  }
+  
+  const newData = { ownerId: null, admins: [], state: DEFAULT_STATE };
+  await db.collection('programs').doc(programId).set(newData);
+  return newData;
 }
 
-async function updateProgramState(programId, updates) {
-  await db.collection('programs').doc(programId).update(updates);
-  return await getProgramState(programId);
+async function updateProgramState(programId, stateUpdates) {
+  const data = await getProgramData(programId);
+  const newState = { ...data.state, ...stateUpdates };
+  await db.collection('programs').doc(programId).update({ state: newState });
+  return newState;
 }
 
 // Upload endpoint
@@ -86,7 +96,8 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
   const fileName = req.body.customName || req.file.originalname;
   const fileType = req.file.mimetype;
 
-  let state = await getProgramState(programId);
+  let data = await getProgramData(programId);
+  let state = data.state;
   const itemIndex = state.items.findIndex(i => i.id === itemId);
   if (itemIndex !== -1) {
     if (!state.items[itemIndex].attachments) state.items[itemIndex].attachments = [];
@@ -100,7 +111,8 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
 // Delete file endpoint
 app.delete('/upload/:programId/:itemId/:filename', async (req, res) => {
   const { programId, itemId, filename } = req.params;
-  let state = await getProgramState(programId);
+  let data = await getProgramData(programId);
+  let state = data.state;
   const itemIndex = state.items.findIndex(i => i.id === itemId);
   if (itemIndex !== -1 && state.items[itemIndex].attachments) {
     state.items[itemIndex].attachments = state.items[itemIndex].attachments.filter(a => !a.url.includes(filename));
@@ -114,13 +126,18 @@ app.delete('/upload/:programId/:itemId/:filename', async (req, res) => {
 // Websockets
 io.on('connection', async (socket) => {
   const programId = socket.handshake.query.programId || 'default';
+  const userId = parseInt(socket.handshake.query.userId) || 0;
   socket.join(programId);
   
-  let state = await getProgramState(programId);
-  socket.emit('stateUpdate', { ...state, serverTime: Date.now() });
+  let data = await getProgramData(programId);
+  
+  // You are admin if you are in the admins list, or if the program is public/legacy (admins empty)
+  const isAdmin = data.admins.includes(userId) || data.admins.length === 0;
+  
+  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now() });
   
   socket.on('setActiveItem', async (index) => {
-    let s = await getProgramState(programId);
+    let s = (await getProgramData(programId)).state;
     s.activeItemIndex = index;
     if (s.isLive) s.liveStartTime = Date.now();
     s = await updateProgramState(programId, { activeItemIndex: s.activeItemIndex, liveStartTime: s.liveStartTime });
@@ -128,7 +145,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('toggleLive', async () => {
-    let s = await getProgramState(programId);
+    let s = (await getProgramData(programId)).state;
     s.isLive = !s.isLive;
     s.liveStartTime = s.isLive ? Date.now() : null;
     s = await updateProgramState(programId, { isLive: s.isLive, liveStartTime: s.liveStartTime });
@@ -136,7 +153,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('moveItem', async ({ index, direction }) => {
-    let s = await getProgramState(programId);
+    let s = (await getProgramData(programId)).state;
     const newIndex = index + direction;
     if (newIndex >= 0 && newIndex < s.items.length) {
       const temp = s.items[index];
@@ -153,7 +170,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('updateItem', async ({ index, updatedData }) => {
-    let s = await getProgramState(programId);
+    let s = (await getProgramData(programId)).state;
     if (s.items[index]) {
       s.items[index] = {
         ...s.items[index],
@@ -169,7 +186,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('deleteItem', async (index) => {
-    let s = await getProgramState(programId);
+    let s = (await getProgramData(programId)).state;
     if (index >= 0 && index < s.items.length) {
       s.items.splice(index, 1);
       let newActive = s.activeItemIndex;
@@ -195,7 +212,12 @@ if (BOT_TOKEN) {
 
   const createProgramHandler = async (ctx) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    await db.collection('programs').doc(newId).set(DEFAULT_STATE);
+    const userId = ctx.from.id;
+    await db.collection('programs').doc(newId).set({
+      ownerId: userId,
+      admins: [userId],
+      state: DEFAULT_STATE
+    });
     
     let botUsername = "ProgramLiveBot";
     try {
