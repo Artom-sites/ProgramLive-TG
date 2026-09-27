@@ -3,6 +3,11 @@ const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.expand();
   tg.ready();
+  document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color);
+  document.documentElement.style.setProperty('--tg-text', tg.themeParams.text_color);
+  document.documentElement.style.setProperty('--tg-hint', tg.themeParams.hint_color);
+  document.documentElement.style.setProperty('--tg-button', tg.themeParams.button_color);
+  document.documentElement.style.setProperty('--tg-button-text', tg.themeParams.button_text_color);
 }
 
 const socket = io();
@@ -11,7 +16,6 @@ const socket = io();
 let state = { isLive: false, items: [] };
 let isAdmin = false;
 
-// SVG Icons Dictionary
 const icons = {
   music: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`,
   prayer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
@@ -20,77 +24,77 @@ const icons = {
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
 };
 
+const colors = {
+  music: 'rgba(59, 130, 246, 0.4)',  // Blue
+  prayer: 'rgba(168, 85, 247, 0.4)', // Purple
+  choir: 'rgba(236, 72, 153, 0.4)',  // Pink
+  word: 'rgba(234, 179, 8, 0.4)',    // Yellow/Gold
+  info: 'rgba(100, 116, 139, 0.4)'   // Slate
+};
+
 const els = {
+  ambientBg: document.getElementById('ambientBg'),
+  artCover: document.getElementById('artCover'),
   roleToggleBtn: document.getElementById('roleToggleBtn'),
   liveBadge: document.getElementById('liveBadge'),
   syncStatus: document.getElementById('syncStatus'),
-  
   heroIconWrap: document.getElementById('heroIconWrap'),
   heroType: document.getElementById('heroType'),
   heroCounter: document.getElementById('heroCounter'),
   heroTitle: document.getElementById('heroTitle'),
   heroNote: document.getElementById('heroNote'),
-  
   adminControls: document.getElementById('adminControls'),
   prevBtn: document.getElementById('prevBtn'),
   nextBtn: document.getElementById('nextBtn'),
-  
   floatingToolbar: document.getElementById('floatingToolbar'),
   toggleLiveBtn: document.getElementById('toggleLiveBtn'),
   toggleLiveText: document.getElementById('toggleLiveText'),
-  
   itemsContainer: document.getElementById('itemsContainer')
 };
 
-// SOCKET LISTENERS
 socket.on('stateUpdate', (newState) => {
   state = newState;
   render();
+  // Animate cover
+  els.artCover.classList.add('pulse');
+  setTimeout(() => els.artCover.classList.remove('pulse'), 300);
   if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 });
 
-// RENDER ENGINE
 function render() {
   const activeIndex = state.items.findIndex(i => i.active);
   const activeItem = activeIndex !== -1 ? state.items[activeIndex] : state.items[0];
-  const activeDisplayIndex = activeIndex !== -1 ? activeIndex : 0;
 
-  // 1. Render Hero
   if (activeItem) {
     els.heroIconWrap.innerHTML = icons[activeItem.category] || icons.info;
+    els.ambientBg.style.background = `radial-gradient(circle at 50% 0%, ${colors[activeItem.category] || colors.info} 0%, transparent 70%)`;
+    
     els.heroType.textContent = activeItem.type;
-    els.heroCounter.textContent = `${activeDisplayIndex + 1} з ${state.items.length}`;
+    els.heroCounter.textContent = `${(activeIndex !== -1 ? activeIndex : 0) + 1}/${state.items.length}`;
     els.heroTitle.textContent = activeItem.title || activeItem.type;
     els.heroNote.textContent = activeItem.note || "";
   }
 
-  // Admin Controls
   els.prevBtn.disabled = activeIndex <= 0;
-  els.nextBtn.innerHTML = activeIndex === state.items.length - 1 
-    ? `<span>Завершити</span>` 
-    : `<span>Наступний пункт</span> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
-
-  // Live State
+  
   if (state.isLive) {
-    els.liveBadge.classList.remove('hidden');
+    els.liveBadge.style.display = 'flex';
     els.syncStatus.textContent = "В ефірі";
-    els.syncStatus.style.color = "var(--accent-red)";
+    els.syncStatus.style.color = "#ef4444";
     els.toggleLiveText.textContent = "Зупинити ефір";
   } else {
-    els.liveBadge.classList.add('hidden');
-    els.syncStatus.textContent = "Оновлено щойно";
-    els.syncStatus.style.color = "var(--text-secondary)";
-    els.toggleLiveText.textContent = "Почати служіння";
+    els.liveBadge.style.display = 'none';
+    els.syncStatus.textContent = "Оновлено";
+    els.syncStatus.style.color = "var(--tg-hint)";
+    els.toggleLiveText.textContent = "Запустити ефір";
   }
 
-  // 2. Render List
   els.itemsContainer.innerHTML = '';
   state.items.forEach((item, index) => {
     const isPast = index < activeIndex;
     const isCurrent = index === activeIndex;
-
     const row = document.createElement('div');
-    row.className = `list-item ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''}`;
+    row.className = `track-row ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''}`;
     
     if (isAdmin) {
       row.style.cursor = 'pointer';
@@ -100,25 +104,23 @@ function render() {
     let adminHTML = '';
     if (isAdmin) {
       adminHTML = `
-        <div class="item-actions">
-          <button class="action-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+        <div class="admin-actions">
+          <button class="arr-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
           </button>
-          <button class="action-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <button class="arr-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
         </div>
       `;
     }
 
     row.innerHTML = `
-      <div class="item-index">${index + 1}</div>
-      <div class="item-icon-wrap">
-        ${icons[item.category] || icons.info}
-      </div>
-      <div class="item-content">
-        <div class="item-type">${item.type}</div>
-        <div class="item-title">${item.title || item.note || ''}</div>
+      <div class="track-num">${index + 1}</div>
+      <div class="track-icon-mini">${icons[item.category] || icons.info}</div>
+      <div class="track-details">
+        <div class="td-title">${item.title || item.type}</div>
+        <div class="td-type">${item.type}</div>
       </div>
       ${adminHTML}
     `;
@@ -126,10 +128,9 @@ function render() {
   });
 }
 
-// EVENT LISTENERS
 els.roleToggleBtn.addEventListener('click', () => {
   isAdmin = !isAdmin;
-  els.roleToggleBtn.textContent = isAdmin ? "Редагування" : "Глядач";
+  els.roleToggleBtn.textContent = isAdmin ? "РЕДАКТОР" : "ГЛЯДАЧ";
   els.roleToggleBtn.classList.toggle('is-admin', isAdmin);
   
   if (isAdmin) {
