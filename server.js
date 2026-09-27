@@ -165,11 +165,16 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
   
-  bot.command('start', (ctx) => {
-    ctx.reply("Привіт! Я ProgramLive Bot.\nВикористовуйте /new щоб створити нову незалежну програму.");
+  bot.start((ctx) => {
+    ctx.reply("Привіт! Я ProgramLive Bot.\nНатисніть кнопку нижче, щоб створити нову розклад-програму.", {
+      reply_markup: {
+        keyboard: [[{ text: "➕ Створити нову програму" }]],
+        resize_keyboard: true
+      }
+    });
   });
 
-  bot.command('new', async (ctx) => {
+  const createProgramHandler = async (ctx) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     await db.collection('programs').doc(newId).set(DEFAULT_STATE);
     
@@ -179,13 +184,15 @@ if (BOT_TOKEN) {
       botUsername = botInfo.username;
     } catch(e) {}
 
-    // Telegram Web App direct link format
     const appLink = `https://t.me/${botUsername}/app?startapp=${newId}`;
     
-    ctx.reply(`✅ Нова програма створена!\nID програми: ${newId}\n\nНадішліть це посилання учасникам команди або в групу, щоб відкрити цю конкретную програму:\n${appLink}`, {
-      reply_markup: { inline_keyboard: [[{ text: "Відкрити Програму", url: appLink }]] }
+    ctx.reply(`✅ Нова програма створена!\nID програми: ${newId}\n\nНадішліть це посилання учасникам команди або закріпіть у групі:\n${appLink}`, {
+      reply_markup: { inline_keyboard: [[{ text: "📱 Відкрити Програму", url: appLink }]] }
     });
-  });
+  };
+
+  bot.hears("➕ Створити нову програму", createProgramHandler);
+  bot.command('new', createProgramHandler);
 
   bot.launch();
 }
