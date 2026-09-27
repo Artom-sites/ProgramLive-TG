@@ -11,14 +11,12 @@ if (tg) {
 
 const socket = io();
 
-// State
 let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null };
 let serverTimeOffset = 0;
 let isAdmin = false;
 let timerInterval = null;
-let expandedItems = new Set(); // Track manually expanded cards
+let expandedItems = new Set();
 
-// DOM
 const els = {
   roleToggle: document.getElementById('roleToggle'),
   liveBadge: document.getElementById('liveBadge'),
@@ -27,11 +25,9 @@ const els = {
   btnPrev: document.getElementById('btnPrev'),
   btnNext: document.getElementById('btnNext'),
   btnLive: document.getElementById('btnLive'),
-  
   contentModal: document.getElementById('contentModal'),
   modalTitle: document.getElementById('modalTitle'),
   modalBody: document.getElementById('modalBody'),
-  
   editModal: document.getElementById('editModal'),
   editIndex: document.getElementById('editIndex'),
   editItemId: document.getElementById('editItemId'),
@@ -46,141 +42,13 @@ const els = {
   btnSaveEdit: document.getElementById('btnSaveEdit')
 };
 
-// Utils
+// ── Utils ──
 const formatTime = (seconds) => {
   const m = Math.floor(Math.abs(seconds) / 60).toString().padStart(2, '0');
   const s = (Math.abs(seconds) % 60).toString().padStart(2, '0');
   return seconds < 0 ? `-${m}:${s}` : `${m}:${s}`;
 };
 
-// Sync
-socket.on('stateUpdate', (newState) => {
-  state = newState;
-  serverTimeOffset = Date.now() - state.serverTime;
-  render();
-  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-});
-
-// Timer Loop
-function startTimerLoop() {
-  if (timerInterval) clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    if (!state.isLive || !state.liveStartTime) return;
-    const activeItem = state.items[state.activeItemIndex];
-    if (!activeItem) return;
-
-    const elapsedSeconds = Math.floor((Date.now() - serverTimeOffset - state.liveStartTime) / 1000);
-    const remainingSeconds = activeItem.duration - elapsedSeconds;
-
-    const timerEl = document.getElementById(`timer-${activeItem.id}`);
-    if (timerEl) {
-      timerEl.textContent = formatTime(remainingSeconds);
-      if (remainingSeconds < 0) {
-        timerEl.classList.add('overtime');
-      } else {
-        timerEl.classList.remove('overtime');
-      }
-    }
-  }, 1000);
-}
-
-// Render
-function render() {
-  // Header
-  if (state.isLive) {
-    els.liveBadge.classList.remove('hidden');
-    els.btnLive.classList.add('active');
-    els.btnLive.textContent = "STOP LIVE";
-  } else {
-    els.liveBadge.classList.add('hidden');
-    els.btnLive.classList.remove('active');
-    els.btnLive.textContent = "START LIVE";
-  }
-
-  els.btnPrev.disabled = state.activeItemIndex <= 0;
-  els.btnNext.disabled = state.activeItemIndex >= state.items.length - 1;
-
-  // Timeline
-  els.timeline.innerHTML = '';
-  state.items.forEach((item, index) => {
-    const isCurrent = index === state.activeItemIndex;
-    const isPast = index < state.activeItemIndex;
-    const isExpanded = expandedItems.has(item.id) || isCurrent;
-
-    const card = document.createElement('div');
-    card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''} ${isExpanded ? 'expanded' : ''}`;
-    
-    // Toggle expand on click
-    card.onclick = (e) => {
-      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-      if (!isCurrent) { // Only toggle non-active items, active is always expanded
-        if (expandedItems.has(item.id)) expandedItems.delete(item.id);
-        else expandedItems.add(item.id);
-        render(); // fast re-render
-      }
-    };
-
-    // Details Content
-    let detailsHTML = `
-      <div class="detail-row"><span class="detail-label">Хто:</span><span class="detail-val">${item.assignee || '—'}</span></div>
-      ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
-      ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
-    `;
-
-    // Action Buttons
-    let actionsHTML = '';
-    if (item.content?.chords) {
-      actionsHTML += `<button class="btn-small" onclick="openContent('${item.title}', \`${item.content.chords}\`)">Акорди/Текст</button>`;
-    }
-    if (isAdmin) {
-      actionsHTML += `<button class="btn-small primary" onclick="openEdit(${index})">Редагувати</button>`;
-      
-      if (!isCurrent) {
-        actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', ${index})">Зробити активним</button>`;
-      }
-      
-      actionsHTML += `
-        <div style="flex:1"></div>
-        <button class="btn-small" onclick="socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>▲</button>
-        <button class="btn-small" onclick="socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>▼</button>
-      `;
-    }
-
-    // Attachments chips (visible to all)
-    let filesHTML = '';
-    if (item.attachments && item.attachments.length > 0) {
-      filesHTML = `<div class="card-files">` +
-        item.attachments.map(a => {
-          const icon = getFileIcon(a.type);
-          return `<a href="${a.url}" target="_blank" class="file-chip">${icon} ${a.name}</a>`;
-        }).join('') +
-        `</div>`;
-    }
-
-    card.innerHTML = `
-      <div class="item-main">
-        <div class="item-left">
-          <span class="item-num">${index + 1}</span>
-          <span class="item-title">${item.title}</span>
-        </div>
-        <div class="item-right">
-          <span id="timer-${item.id}" class="item-timer">${isCurrent && state.isLive ? formatTime(item.duration) : Math.floor(item.duration/60) + ' хв'}</span>
-        </div>
-      </div>
-      <div class="item-details">
-        ${detailsHTML}
-        ${filesHTML}
-        <div class="item-actions-row">${actionsHTML}</div>
-      </div>
-    `;
-    
-    els.timeline.appendChild(card);
-  });
-
-  startTimerLoop();
-}
-
-// File type icon helper
 function getFileIcon(mime) {
   if (!mime) return '📎';
   if (mime.includes('pdf')) return '📄';
@@ -191,20 +59,250 @@ function getFileIcon(mime) {
   return '📎';
 }
 
-// Render attachment list inside edit modal
+// ── Socket ──
+socket.on('stateUpdate', (newState) => {
+  state = newState;
+  serverTimeOffset = Date.now() - state.serverTime;
+  render();
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+});
+
+// ── Timer Loop ──
+function startTimerLoop() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!state.isLive || !state.liveStartTime) return;
+    const activeItem = state.items[state.activeItemIndex];
+    if (!activeItem) return;
+    const elapsed = Math.floor((Date.now() - serverTimeOffset - state.liveStartTime) / 1000);
+    const remaining = activeItem.duration - elapsed;
+    const timerEl = document.getElementById(`timer-${activeItem.id}`);
+    if (timerEl) {
+      timerEl.textContent = formatTime(remaining);
+      timerEl.classList.toggle('overtime', remaining < 0);
+    }
+  }, 1000);
+}
+
+// ── Render ──
+function render() {
+  if (state.isLive) {
+    els.liveBadge.classList.remove('hidden');
+    els.btnLive.classList.add('active');
+    els.btnLive.textContent = "STOP LIVE";
+  } else {
+    els.liveBadge.classList.add('hidden');
+    els.btnLive.classList.remove('active');
+    els.btnLive.textContent = "START LIVE";
+  }
+  els.btnPrev.disabled = state.activeItemIndex <= 0;
+  els.btnNext.disabled = state.activeItemIndex >= state.items.length - 1;
+
+  els.timeline.innerHTML = '';
+
+  state.items.forEach((item, index) => {
+    const isCurrent = index === state.activeItemIndex;
+    const isPast = index < state.activeItemIndex;
+    const isExpanded = expandedItems.has(item.id) || isCurrent;
+
+    const card = document.createElement('div');
+    card.dataset.index = index;
+    card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''} ${isExpanded ? 'expanded' : ''}`;
+
+    // Toggle expand on tap (not during swipe)
+    card.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('a')) return;
+      if (e.target.closest('.drag-handle')) return;
+      if (!isCurrent) {
+        if (expandedItems.has(item.id)) expandedItems.delete(item.id);
+        else expandedItems.add(item.id);
+        render();
+      }
+    };
+
+    // Details
+    const detailsHTML = `
+      <div class="detail-row"><span class="detail-label">Хто:</span><span class="detail-val">${item.assignee || '—'}</span></div>
+      ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
+      ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
+    `;
+
+    // Action buttons
+    let actionsHTML = '';
+    if (item.content?.chords) {
+      actionsHTML += `<button class="btn-small" onclick="openContent('${item.title}', \`${item.content.chords}\`)">Акорди/Текст</button>`;
+    }
+    if (isAdmin) {
+      actionsHTML += `<button class="btn-small primary" onclick="openEdit(${index})">Редагувати</button>`;
+      if (!isCurrent) {
+        actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', ${index})">Зробити активним</button>`;
+      }
+    }
+
+    // File chips
+    let filesHTML = '';
+    if (item.attachments && item.attachments.length > 0) {
+      filesHTML = `<div class="card-files">` +
+        item.attachments.map(a => `<a href="${a.url}" target="_blank" class="file-chip">${getFileIcon(a.type)} ${a.name}</a>`).join('') +
+        `</div>`;
+    }
+
+    const dragHandle = isAdmin ? `<div class="drag-handle" title="Перетягнути">⠿</div>` : '';
+
+    card.innerHTML = `
+      ${isAdmin && !isCurrent ? `<div class="swipe-delete-bg">🗑 Видалити</div>` : ''}
+      <div class="card-inner">
+        <div class="item-main">
+          <div class="item-left">
+            ${dragHandle}
+            <span class="item-num">${index + 1}</span>
+            <span class="item-title">${item.title}</span>
+          </div>
+          <div class="item-right">
+            <span id="timer-${item.id}" class="item-timer">${isCurrent && state.isLive ? formatTime(item.duration) : Math.floor(item.duration / 60) + ' хв'}</span>
+          </div>
+        </div>
+        <div class="item-details">
+          ${detailsHTML}
+          ${filesHTML}
+          <div class="item-actions-row">${actionsHTML}</div>
+        </div>
+      </div>
+    `;
+
+    // ── SWIPE LEFT TO DELETE ──
+    if (isAdmin && !isCurrent) {
+      const inner = card.querySelector('.card-inner');
+      const deleteBg = card.querySelector('.swipe-delete-bg');
+      let sx = 0, sy = 0, swiping = false, confirmed = false;
+
+      card.addEventListener('touchstart', (e) => {
+        sx = e.touches[0].clientX;
+        sy = e.touches[0].clientY;
+        swiping = false; confirmed = false;
+        inner.style.transition = 'none';
+      }, { passive: true });
+
+      card.addEventListener('touchmove', (e) => {
+        const dx = e.touches[0].clientX - sx;
+        const dy = e.touches[0].clientY - sy;
+        if (!swiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) swiping = true;
+        if (!swiping || dx > 0) return;
+        inner.style.transform = `translateX(${dx}px)`;
+        confirmed = dx < -90;
+        deleteBg.style.opacity = Math.min(1, Math.abs(dx) / 90);
+      }, { passive: true });
+
+      card.addEventListener('touchend', () => {
+        inner.style.transition = 'transform 0.25s ease';
+        if (confirmed) {
+          inner.style.transform = 'translateX(-110%)';
+          card.style.transition = 'opacity 0.2s';
+          card.style.opacity = '0';
+          setTimeout(() => socket.emit('deleteItem', index), 220);
+          if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+        } else {
+          inner.style.transform = 'translateX(0)';
+          deleteBg.style.opacity = 0;
+        }
+      });
+    }
+
+    // ── LONG-PRESS DRAG & DROP ──
+    if (isAdmin) {
+      let pressTimer = null, isDragging = false;
+      let clone = null, fromIndex = index, toIndex = index;
+
+      const handle = card.querySelector('.drag-handle');
+      if (!handle) { els.timeline.appendChild(card); return; }
+
+      handle.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        pressTimer = setTimeout(() => {
+          isDragging = true;
+          fromIndex = index;
+          toIndex = index;
+          if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
+
+          const rect = card.getBoundingClientRect();
+          clone = card.cloneNode(true);
+          Object.assign(clone.style, {
+            position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+            width: rect.width + 'px', zIndex: '999', opacity: '0.9',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.3)', pointerEvents: 'none',
+            borderRadius: '12px', transition: 'none', margin: '0'
+          });
+          document.body.appendChild(clone);
+          card.style.opacity = '0.25';
+        }, 400);
+      }, { passive: true });
+
+      handle.addEventListener('touchmove', (e) => {
+        clearTimeout(pressTimer);
+        if (!isDragging || !clone) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const cRect = clone.getBoundingClientRect();
+        clone.style.top = (touch.clientY - cRect.height / 2) + 'px';
+
+        // Find which card we're hovering
+        clone.style.pointerEvents = 'none';
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const overCard = el?.closest('[data-index]');
+        if (overCard) {
+          const oi = parseInt(overCard.dataset.index);
+          if (!isNaN(oi) && oi !== toIndex) {
+            toIndex = oi;
+            document.querySelectorAll('.item-card').forEach(c => c.classList.remove('drop-target'));
+            overCard.classList.add('drop-target');
+          }
+        }
+      }, { passive: false });
+
+      const finishDrag = () => {
+        clearTimeout(pressTimer);
+        if (!isDragging) return;
+        isDragging = false;
+        if (clone) { clone.remove(); clone = null; }
+        card.style.opacity = '';
+        document.querySelectorAll('.item-card').forEach(c => c.classList.remove('drop-target'));
+
+        if (toIndex !== fromIndex) {
+          const dir = toIndex > fromIndex ? 1 : -1;
+          const steps = Math.abs(toIndex - fromIndex);
+          let cur = fromIndex;
+          for (let i = 0; i < steps; i++) {
+            socket.emit('moveItem', { index: cur, direction: dir });
+            cur += dir;
+          }
+          if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+        }
+      };
+
+      handle.addEventListener('touchend', finishDrag);
+      handle.addEventListener('touchcancel', finishDrag);
+    }
+
+    els.timeline.appendChild(card);
+  });
+
+  startTimerLoop();
+}
+
+// ── Attachment UI ──
 function renderEditAttachments(item) {
   if (!els.editAttachmentsList) return;
   const list = item.attachments || [];
-  if (list.length === 0) {
-    els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint);padding:4px 0">Файли не прикріплені</div>`;
+  if (!list.length) {
+    els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint)">Файли не прикріплені</div>`;
     return;
   }
-  els.editAttachmentsList.innerHTML = list.map((a, i) => `
+  els.editAttachmentsList.innerHTML = list.map(a => `
     <div class="attachment-row">
       <span class="attachment-icon">${getFileIcon(a.type)}</span>
       <span class="attachment-name">${a.name}</span>
       <a href="${a.url}" target="_blank" class="attachment-open">Відкрити</a>
-      <button class="attachment-del" onclick="deleteAttachment('${item.id}', '${a.url}')">×</button>
+      <button class="attachment-del" onclick="deleteAttachment('${item.id}','${a.url}')">×</button>
     </div>
   `).join('');
 }
@@ -212,12 +310,8 @@ function renderEditAttachments(item) {
 window.deleteAttachment = (itemId, url) => {
   const filename = url.split('/').pop();
   fetch(`/upload/${itemId}/${filename}`, { method: 'DELETE' });
-  // Optimistic update
   const item = state.items.find(i => i.id === itemId);
-  if (item) {
-    item.attachments = item.attachments.filter(a => a.url !== url);
-    renderEditAttachments(item);
-  }
+  if (item) { item.attachments = item.attachments.filter(a => a.url !== url); renderEditAttachments(item); }
 };
 
 window.handleFileUpload = async (input) => {
@@ -225,20 +319,16 @@ window.handleFileUpload = async (input) => {
   if (!file) return;
   const itemId = els.editItemId.value;
   if (!itemId) return;
-
   els.uploadProgress.classList.remove('hidden');
   els.uploadProgress.textContent = `⏳ Завантаження ${file.name}...`;
-
   const formData = new FormData();
   formData.append('file', file);
-
   try {
     const res = await fetch(`/upload/${itemId}`, { method: 'POST', body: formData });
     const data = await res.json();
     if (data.ok) {
       els.uploadProgress.textContent = `✅ ${file.name} додано!`;
       setTimeout(() => els.uploadProgress.classList.add('hidden'), 2000);
-      // Refresh attachment list from current state
       const item = state.items.find(i => i.id === itemId);
       if (item) renderEditAttachments(item);
     }
@@ -246,7 +336,16 @@ window.handleFileUpload = async (input) => {
     els.uploadProgress.textContent = '❌ Помилка завантаження';
     setTimeout(() => els.uploadProgress.classList.add('hidden'), 3000);
   }
-  input.value = ''; // reset file input
+  input.value = '';
+};
+
+// ── Modals ──
+window.openContent = (title, content) => {
+  els.modalTitle.textContent = title;
+  els.modalBody.style.fontFamily = 'monospace';
+  els.modalBody.style.whiteSpace = 'pre-wrap';
+  els.modalBody.textContent = content;
+  els.contentModal.classList.add('open');
 };
 
 window.openEdit = (index) => {
@@ -266,32 +365,32 @@ window.openEdit = (index) => {
 
 els.btnSaveEdit.onclick = () => {
   const index = parseInt(els.editIndex.value);
-  const updatedData = {
-    title: els.editTitle.value,
-    assignee: els.editAssignee.value,
-    duration: parseInt(els.editDuration.value) * 60,
-    sound: els.editSound.value,
-    media: els.editMedia.value,
-    chords: els.editChords.value
-  };
-  socket.emit('updateItem', { index, updatedData });
+  socket.emit('updateItem', {
+    index,
+    updatedData: {
+      title: els.editTitle.value,
+      assignee: els.editAssignee.value,
+      duration: parseInt(els.editDuration.value) * 60,
+      sound: els.editSound.value,
+      media: els.editMedia.value,
+      chords: els.editChords.value
+    }
+  });
   els.editModal.classList.remove('open');
-  if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 };
 
-
-// Interactions
+// ── Admin Toggle ──
 els.roleToggle.onclick = () => {
   isAdmin = !isAdmin;
   els.roleToggle.textContent = isAdmin ? "АДМІН" : "ГЛЯДАЧ";
   els.roleToggle.classList.toggle('admin-active', isAdmin);
-  
   if (isAdmin) els.bottomBar.classList.remove('hidden');
   else els.bottomBar.classList.add('hidden');
-  
   render();
 };
 
+// ── Live Controls ──
 els.btnPrev.onclick = () => socket.emit('setActiveItem', state.activeItemIndex - 1);
 els.btnNext.onclick = () => socket.emit('setActiveItem', state.activeItemIndex + 1);
 els.btnLive.onclick = () => socket.emit('toggleLive');

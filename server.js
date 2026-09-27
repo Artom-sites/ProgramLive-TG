@@ -139,6 +139,17 @@ io.on('connection', (socket) => {
       io.emit('stateUpdate', { ...state, serverTime: Date.now() });
     }
   });
+
+  socket.on('deleteItem', (index) => {
+    if (index >= 0 && index < state.items.length) {
+      state.items.splice(index, 1);
+      // Adjust active index if needed
+      if (state.activeItemIndex >= state.items.length) {
+        state.activeItemIndex = Math.max(0, state.items.length - 1);
+      }
+      io.emit('stateUpdate', { ...state, serverTime: Date.now() });
+    }
+  });
 });
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
