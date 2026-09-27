@@ -38,10 +38,17 @@ const els = {
   editDuration: document.getElementById('editDuration'),
   editSound: document.getElementById('editSound'),
   editMedia: document.getElementById('editMedia'),
+  editType: document.getElementById('editType'),
   editChords: document.getElementById('editChords'),
   editAttachmentsList: document.getElementById('editAttachmentsList'),
   uploadProgress: document.getElementById('uploadProgress'),
-  btnSaveEdit: document.getElementById('btnSaveEdit')
+  btnSaveEdit: document.getElementById('btnSaveEdit'),
+  headerTitle: document.getElementById('headerTitle'),
+  btnSettings: document.getElementById('btnSettings'),
+  btnShare: document.getElementById('btnShare'),
+  settingsModal: document.getElementById('settingsModal'),
+  settingsTitle: document.getElementById('settingsTitle'),
+  btnSaveSettings: document.getElementById('btnSaveSettings')
 };
 
 // ── Utils ──
@@ -99,6 +106,10 @@ function startTimerLoop() {
 
 // ── Render ──
 function render() {
+  els.headerTitle.textContent = state.title || "Програма";
+  els.btnSettings.classList.toggle('hidden', !isAdmin);
+  els.btnShare.classList.toggle('hidden', !isAdmin);
+
   if (state.isLive) {
     els.liveBadge.classList.remove('hidden');
     els.btnLive.classList.add('active');
@@ -120,6 +131,7 @@ function render() {
 
     const card = document.createElement('div');
     card.dataset.index = index;
+    card.dataset.type = item.type || 'standard';
     card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''} ${isExpanded ? 'expanded' : ''}`;
 
     // Toggle expand on tap (not during swipe)
@@ -404,6 +416,7 @@ window.openEdit = (index) => {
   els.editIndex.value = index;
   els.editItemId.value = item.id;
   els.editTitle.value = item.title || '';
+  els.editType.value = item.type || 'standard';
   els.editAssignee.value = item.assignee || '';
   els.editDuration.value = Math.floor(item.duration / 60);
   els.editSound.value = item.cues?.sound || '';
@@ -419,6 +432,7 @@ els.btnSaveEdit.onclick = () => {
     index,
     updatedData: {
       title: els.editTitle.value,
+      type: els.editType.value,
       assignee: els.editAssignee.value,
       duration: parseInt(els.editDuration.value) * 60,
       sound: els.editSound.value,
@@ -428,6 +442,34 @@ els.btnSaveEdit.onclick = () => {
   });
   els.editModal.classList.remove('open');
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+};
+
+// ── Settings & Share ──
+els.btnSettings.onclick = () => {
+  els.settingsTitle.value = state.title || "Програма";
+  els.settingsModal.classList.add('active');
+};
+
+els.btnSaveSettings.onclick = () => {
+  socket.emit('updateProgramSettings', { title: els.settingsTitle.value });
+  els.settingsModal.classList.remove('active');
+};
+
+els.btnShare.onclick = () => {
+  const lines = state.items.map((i, idx) => {
+    let t = `${idx + 1}. ${i.title}`;
+    if (i.assignee) t += ` - ${i.assignee}`;
+    return t;
+  });
+  const text = `📋 ${state.title || 'Служіння'}\n\n${lines.join('\n')}\n\nВідкрити в додатку: https://t.me/ProgramLiveBot/app?startapp=${programId}`;
+  
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      tg?.showAlert("✅ Програму скопійовано в буфер обміну! Ви можете вставити її в чат.");
+    });
+  } else {
+    tg?.showAlert("Скопіюйте це посилання:\nhttps://t.me/ProgramLiveBot/app?startapp=" + programId);
+  }
 };
 
 // ── Live Controls ──

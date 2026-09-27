@@ -56,6 +56,7 @@ app.use('/files', express.static(UPLOAD_DIR));
 
 // Base Default State for new programs
 const DEFAULT_STATE = {
+  title: "Нова програма",
   isLive: false,
   liveStartTime: null,
   activeItemIndex: 0,
@@ -65,14 +66,15 @@ const DEFAULT_STATE = {
   ]
 };
 
+// Database Helpers
 async function getProgramData(programId) {
   const doc = await db.collection('programs').doc(programId).get();
   if (doc.exists) {
     const data = doc.data();
-    // Legacy migration check: if there is no 'state' field, assume the whole doc is the state
     if (data.items && !data.state) {
-      return { ownerId: null, admins: [], state: data };
+      return { ownerId: null, admins: [], state: { title: "Програма", ...data } };
     }
+    if (!data.state.title) data.state.title = "Програма";
     return data;
   }
   
@@ -169,11 +171,19 @@ io.on('connection', async (socket) => {
     }
   });
 
+  socket.on('updateProgramSettings', async (newSettings) => {
+    let s = (await getProgramData(programId)).state;
+    s.title = newSettings.title;
+    s = await updateProgramState(programId, { title: s.title });
+    io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
+  });
+
   socket.on('updateItem', async ({ index, updatedData }) => {
     let s = (await getProgramData(programId)).state;
     if (s.items[index]) {
       s.items[index] = {
         ...s.items[index],
+        type: updatedData.type || s.items[index].type || 'standard',
         title: updatedData.title,
         duration: updatedData.duration,
         assignee: updatedData.assignee,

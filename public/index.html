@@ -10,13 +10,30 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="header-title">Служіння</div>
+    <div class="header-title" id="headerTitle">Програма</div>
     <div class="header-actions">
       <div id="liveBadge" class="badge-live hidden"><div class="pulse-square"></div> LIVE</div>
+      <button id="btnSettings" class="btn-icon hidden" style="background:none;border:none;color:var(--tg-text);font-size:1.2rem;cursor:pointer;">⚙️</button>
+      <button id="btnShare" class="btn-icon hidden" style="background:none;border:none;color:var(--tg-text);font-size:1.2rem;cursor:pointer;margin-left:8px;">📤</button>
     </div>
   </header>
 
   <div id="timeline" class="timeline"></div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin:0;">Налаштування</h3>
+        <button class="btn-close" onclick="document.getElementById('settingsModal').classList.remove('active')">×</button>
+      </div>
+      <div class="form-group">
+        <label>Назва програми</label>
+        <input type="text" id="settingsTitle" class="input-field">
+      </div>
+      <button class="btn-small primary" id="btnSaveSettings" style="width:100%; padding:12px;">Зберегти</button>
+    </div>
+  </div>
 
   <div id="bottomBar" class="bottom-bar hidden">
     <button id="btnPrev" class="action-btn btn-ctrl">НАЗАД</button>
@@ -42,7 +59,17 @@
     <div class="modal-content form-layout">
       <input type="hidden" id="editIndex">
       <input type="hidden" id="editItemId">
-      <label>Назва <input id="editTitle" type="text"></label>
+      <div class="form-row">
+        <label style="flex:2">Назва <input id="editTitle" type="text"></label>
+        <label style="flex:1">Тип 
+          <select id="editType" style="width:100%; padding:8px; border-radius:8px; background:var(--tg-bg); color:var(--tg-text); border:1px solid rgba(128,128,128,0.2); margin-top:4px;">
+            <option value="standard">Звичайний</option>
+            <option value="music">🎵 Пісня</option>
+            <option value="prayer">🙏 Молитва</option>
+            <option value="sermon">📖 Проповідь</option>
+          </select>
+        </label>
+      </div>
       <div class="form-row">
         <label style="flex:1">Відповідальний <input id="editAssignee" type="text"></label>
         <label style="flex:1">Час (хв) <input id="editDuration" type="number"></label>

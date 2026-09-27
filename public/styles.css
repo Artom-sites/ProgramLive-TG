@@ -217,3 +217,9 @@ body {
 }
 .upload-progress.hidden { display: none; }
 
+
+/* Item Types */
+.item-card[data-type="music"] { border-left: 4px solid #3b82f6; }
+.item-card[data-type="prayer"] { border-left: 4px solid #8b5cf6; }
+.item-card[data-type="sermon"] { border-left: 4px solid #10b981; }
+
