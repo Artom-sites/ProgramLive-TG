@@ -327,6 +327,14 @@ if (BOT_TOKEN) {
   }
 
   bot.start(async (ctx) => {
+    const mainMenu = {
+      keyboard: [
+        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }]
+      ],
+      resize_keyboard: true,
+      is_persistent: true
+    };
+    await ctx.reply("👋 Вітаємо! Скористайтеся меню нижче:", { reply_markup: mainMenu }).catch(console.error);
     await sendDashboard(ctx, 0, 'view', false);
   });
 
@@ -360,6 +368,23 @@ if (BOT_TOKEN) {
   });
 
   bot.action("ignore", (ctx) => ctx.answerCbQuery());
+
+  // Menu Keyboard actions
+  bot.hears("📂 Мої програми", async (ctx) => {
+    await sendDashboard(ctx, 0, 'view', false);
+  });
+
+  bot.hears("➕ Створити програму", async (ctx) => {
+    const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const userId = ctx.from.id;
+    await db.collection('programs').doc(newId).set({
+      ownerId: userId,
+      admins: [userId],
+      state: DEFAULT_STATE
+    });
+    await ctx.reply("✅ Програму створено!").catch(()=>null);
+    await sendDashboard(ctx, 0, 'view', false);
+  });
 
   // Catch old keyboard button if it's stuck
   bot.hears("➕ Створити нову програму", async (ctx) => {
