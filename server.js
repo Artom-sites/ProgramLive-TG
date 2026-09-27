@@ -195,6 +195,15 @@ io.on('connection', async (socket) => {
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
+
+  socket.on('addItem', async (newItem) => {
+    let s = (await getProgramData(programId)).state;
+    newItem.id = Math.random().toString(36).substring(2, 9);
+    if (!s.items) s.items = [];
+    s.items.push(newItem);
+    s = await updateProgramState(programId, { items: s.items });
+    io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
+  });
 });
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -219,16 +228,11 @@ if (BOT_TOKEN) {
       state: DEFAULT_STATE
     });
     
-    let botUsername = "ProgramLiveBot";
-    try {
-      const botInfo = await bot.telegram.getMe();
-      botUsername = botInfo.username;
-    } catch(e) {}
-
-    const appLink = `https://t.me/${botUsername}/app?startapp=${newId}`;
+    // Fallback URL directly opening WebApp with id query param
+    const webAppUrl = `https://programlive-tg.onrender.com/?id=${newId}`;
     
-    ctx.reply(`✅ Нова програма створена!\nID програми: ${newId}\n\nНадішліть це посилання учасникам команди або закріпіть у групі:\n${appLink}`, {
-      reply_markup: { inline_keyboard: [[{ text: "📱 Відкрити Програму", url: appLink }]] }
+    ctx.reply(`✅ Нова програма створена!\nID програми: ${newId}\n\nЩоб поділитися нею, просто перешліть це повідомлення потрібним людям.`, {
+      reply_markup: { inline_keyboard: [[{ text: "📱 Відкрити Програму", web_app: { url: webAppUrl } }]] }
     });
   };
 

@@ -9,7 +9,8 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-btn-text', tg.themeParams.button_text_color);
 }
 
-const programId = tg?.initDataUnsafe?.start_param || 'default';
+const urlParams = new URLSearchParams(window.location.search);
+const programId = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
 const userId = tg?.initDataUnsafe?.user?.id || 0;
 const socket = io({ query: { programId, userId } });
 
@@ -302,6 +303,26 @@ function render() {
 
     els.timeline.appendChild(card);
   });
+
+  if (isAdmin) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-small primary';
+    addBtn.style.width = '100%';
+    addBtn.style.marginTop = '16px';
+    addBtn.style.padding = '12px';
+    addBtn.textContent = '➕ Додати пункт';
+    addBtn.onclick = () => {
+      socket.emit('addItem', {
+        title: "Новий пункт",
+        duration: 300,
+        assignee: "",
+        cues: { sound: "", media: "" },
+        content: null,
+        attachments: []
+      });
+    };
+    els.timeline.appendChild(addBtn);
+  }
 
   startTimerLoop();
 }
