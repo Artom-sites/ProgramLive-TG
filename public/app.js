@@ -44,7 +44,6 @@ const els = {
   uploadProgress: document.getElementById('uploadProgress'),
   btnSaveEdit: document.getElementById('btnSaveEdit'),
   headerTitle: document.getElementById('headerTitle'),
-  btnSettings: document.getElementById('btnSettings'),
   btnShare: document.getElementById('btnShare'),
   settingsModal: document.getElementById('settingsModal'),
   settingsTitle: document.getElementById('settingsTitle'),
@@ -107,7 +106,6 @@ function startTimerLoop() {
 // ── Render ──
 function render() {
   els.headerTitle.textContent = state.title || "Програма";
-  els.btnSettings.classList.toggle('hidden', !isAdmin);
   els.btnShare.classList.toggle('hidden', !isAdmin);
 
   if (state.isLive) {
