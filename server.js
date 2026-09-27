@@ -339,7 +339,6 @@ if (BOT_TOKEN) {
       is_persistent: true
     };
     await ctx.reply("👋 Вітаємо! Скористайтеся меню нижче:", { reply_markup: mainMenu }).catch(console.error);
-    await sendDashboard(ctx, 0, 'view', false);
   });
 
   bot.action(/^dash_(\d+)_(\w+)$/, async (ctx) => {
