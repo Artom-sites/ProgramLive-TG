@@ -34,12 +34,15 @@ const els = {
   
   editModal: document.getElementById('editModal'),
   editIndex: document.getElementById('editIndex'),
+  editItemId: document.getElementById('editItemId'),
   editTitle: document.getElementById('editTitle'),
   editAssignee: document.getElementById('editAssignee'),
   editDuration: document.getElementById('editDuration'),
   editSound: document.getElementById('editSound'),
   editMedia: document.getElementById('editMedia'),
   editChords: document.getElementById('editChords'),
+  editAttachmentsList: document.getElementById('editAttachmentsList'),
+  uploadProgress: document.getElementById('uploadProgress'),
   btnSaveEdit: document.getElementById('btnSaveEdit')
 };
 
@@ -143,6 +146,17 @@ function render() {
       `;
     }
 
+    // Attachments chips (visible to all)
+    let filesHTML = '';
+    if (item.attachments && item.attachments.length > 0) {
+      filesHTML = `<div class="card-files">` +
+        item.attachments.map(a => {
+          const icon = getFileIcon(a.type);
+          return `<a href="${a.url}" target="_blank" class="file-chip">${icon} ${a.name}</a>`;
+        }).join('') +
+        `</div>`;
+    }
+
     card.innerHTML = `
       <div class="item-main">
         <div class="item-left">
@@ -155,6 +169,7 @@ function render() {
       </div>
       <div class="item-details">
         ${detailsHTML}
+        ${filesHTML}
         <div class="item-actions-row">${actionsHTML}</div>
       </div>
     `;
@@ -165,25 +180,87 @@ function render() {
   startTimerLoop();
 }
 
-// Modals
-window.openContent = (title, content) => {
-  els.modalTitle.textContent = title;
-  els.modalBody.style.fontFamily = 'monospace';
-  els.modalBody.style.whiteSpace = 'pre-wrap';
-  els.modalBody.textContent = content;
-  els.contentModal.classList.add('open');
+// File type icon helper
+function getFileIcon(mime) {
+  if (!mime) return '📎';
+  if (mime.includes('pdf')) return '📄';
+  if (mime.includes('image')) return '🖼️';
+  if (mime.includes('audio')) return '🎵';
+  if (mime.includes('video')) return '🎬';
+  if (mime.includes('word') || mime.includes('document')) return '📝';
+  return '📎';
+}
+
+// Render attachment list inside edit modal
+function renderEditAttachments(item) {
+  if (!els.editAttachmentsList) return;
+  const list = item.attachments || [];
+  if (list.length === 0) {
+    els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint);padding:4px 0">Файли не прикріплені</div>`;
+    return;
+  }
+  els.editAttachmentsList.innerHTML = list.map((a, i) => `
+    <div class="attachment-row">
+      <span class="attachment-icon">${getFileIcon(a.type)}</span>
+      <span class="attachment-name">${a.name}</span>
+      <a href="${a.url}" target="_blank" class="attachment-open">Відкрити</a>
+      <button class="attachment-del" onclick="deleteAttachment('${item.id}', '${a.url}')">×</button>
+    </div>
+  `).join('');
+}
+
+window.deleteAttachment = (itemId, url) => {
+  const filename = url.split('/').pop();
+  fetch(`/upload/${itemId}/${filename}`, { method: 'DELETE' });
+  // Optimistic update
+  const item = state.items.find(i => i.id === itemId);
+  if (item) {
+    item.attachments = item.attachments.filter(a => a.url !== url);
+    renderEditAttachments(item);
+  }
+};
+
+window.handleFileUpload = async (input) => {
+  const file = input.files[0];
+  if (!file) return;
+  const itemId = els.editItemId.value;
+  if (!itemId) return;
+
+  els.uploadProgress.classList.remove('hidden');
+  els.uploadProgress.textContent = `⏳ Завантаження ${file.name}...`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(`/upload/${itemId}`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.ok) {
+      els.uploadProgress.textContent = `✅ ${file.name} додано!`;
+      setTimeout(() => els.uploadProgress.classList.add('hidden'), 2000);
+      // Refresh attachment list from current state
+      const item = state.items.find(i => i.id === itemId);
+      if (item) renderEditAttachments(item);
+    }
+  } catch (e) {
+    els.uploadProgress.textContent = '❌ Помилка завантаження';
+    setTimeout(() => els.uploadProgress.classList.add('hidden'), 3000);
+  }
+  input.value = ''; // reset file input
 };
 
 window.openEdit = (index) => {
   const item = state.items[index];
   if (!item) return;
   els.editIndex.value = index;
+  els.editItemId.value = item.id;
   els.editTitle.value = item.title || '';
   els.editAssignee.value = item.assignee || '';
   els.editDuration.value = Math.floor(item.duration / 60);
   els.editSound.value = item.cues?.sound || '';
   els.editMedia.value = item.cues?.media || '';
   els.editChords.value = item.content?.chords || '';
+  renderEditAttachments(item);
   els.editModal.classList.add('open');
 };
 
@@ -201,6 +278,7 @@ els.btnSaveEdit.onclick = () => {
   els.editModal.classList.remove('open');
   if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 };
+
 
 // Interactions
 els.roleToggle.onclick = () => {

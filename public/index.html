@@ -42,6 +42,7 @@
     </div>
     <div class="modal-content form-layout">
       <input type="hidden" id="editIndex">
+      <input type="hidden" id="editItemId">
       <label>Назва <input id="editTitle" type="text"></label>
       <div class="form-row">
         <label style="flex:1">Відповідальний <input id="editAssignee" type="text"></label>
@@ -49,10 +50,23 @@
       </div>
       <label>Нотатки для Звуку <input id="editSound" type="text"></label>
       <label>Нотатки для Медіа <input id="editMedia" type="text"></label>
-      <label>Акорди / Текст <textarea id="editChords" rows="4"></textarea></label>
+      <label>Акорди / Текст <textarea id="editChords" rows="3"></textarea></label>
+
+      <div class="section-label">Прикріплені файли</div>
+      <div id="editAttachmentsList" class="attachments-list"></div>
+      <label class="btn-upload-wrap">
+        <input type="file" id="fileInput" accept="*/*" style="display:none" onchange="handleFileUpload(this)">
+        <div class="btn-upload">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Додати файл з пристрою
+        </div>
+      </label>
+      <div id="uploadProgress" class="upload-progress hidden">⏳ Завантаження...</div>
+
       <button id="btnSaveEdit" class="btn-primary" style="width: 100%; margin-top:16px;">Зберегти зміни</button>
     </div>
   </div>
+
 
   <script src="app.js"></script>
 </body>

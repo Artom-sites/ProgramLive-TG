@@ -150,3 +150,44 @@ body {
 .btn-live.active { background: transparent; border: 2px solid var(--c-danger); color: var(--c-danger); }
 .btn-ctrl { background: var(--tg-text); color: var(--tg-bg); }
 .btn-ctrl:disabled { opacity: 0.2; }
+
+/* ── FILE ATTACHMENTS ── */
+.section-label {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  color: var(--tg-hint); margin: 12px 0 8px;
+}
+.attachments-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.attachment-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm); padding: 8px 12px;
+  font-size: 13px;
+}
+.attachment-icon { font-size: 18px; flex-shrink: 0; }
+.attachment-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-open { color: var(--tg-btn); font-weight: 700; font-size: 12px; text-decoration: none; flex-shrink: 0; }
+.attachment-del { background: none; border: none; color: var(--tg-hint); font-size: 16px; cursor: pointer; flex-shrink: 0; }
+
+/* Card attachment indicator */
+.card-files {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+}
+.file-chip {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  padding: 4px 8px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; color: var(--tg-text);
+}
+
+.btn-upload-wrap { cursor: pointer; display: block; }
+.btn-upload {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1.5px dashed var(--border-subtle);
+  border-radius: var(--radius-sm); padding: 12px;
+  font-size: 13px; font-weight: 600; color: var(--tg-hint);
+}
+.upload-progress {
+  text-align: center; font-size: 13px; color: var(--tg-hint); padding: 8px;
+}
+.upload-progress.hidden { display: none; }
+
