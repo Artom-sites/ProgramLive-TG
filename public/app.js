@@ -145,6 +145,7 @@ function render() {
     if (item.type === 'solo') titlePrefix = '🎤 ';
     if (item.type === 'ensemble') titlePrefix = '👥 ';
     if (item.type === 'orchestra') titlePrefix = '🎻 ';
+    if (item.type === 'choir') titlePrefix = '🎼 ';
     if (item.type === 'prayer') titlePrefix = '🙏 ';
     if (item.type === 'sermon') titlePrefix = '📖 ';
 
