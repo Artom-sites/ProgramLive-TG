@@ -141,14 +141,12 @@ function render() {
     };
 
     let titlePrefix = '';
-    if (item.type === 'music') titlePrefix = '🎵 ';
+    if (item.type === 'song') titlePrefix = '🎵 ';
+    if (item.type === 'solo') titlePrefix = '🎤 ';
+    if (item.type === 'ensemble') titlePrefix = '👥 ';
+    if (item.type === 'orchestra') titlePrefix = '🎻 ';
     if (item.type === 'prayer') titlePrefix = '🙏 ';
     if (item.type === 'sermon') titlePrefix = '📖 ';
-    if (item.type === 'poem') titlePrefix = '📜 ';
-    if (item.type === 'testimony') titlePrefix = '🗣 ';
-    if (item.type === 'offering') titlePrefix = '💰 ';
-    if (item.type === 'video') titlePrefix = '🎥 ';
-    if (item.type === 'announcement') titlePrefix = '📢 ';
 
     // Details
     const detailsHTML = `
