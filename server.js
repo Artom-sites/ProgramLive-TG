@@ -245,7 +245,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
   
-  async function sendDashboard(ctx, isEdit = false) {
+  async function sendDashboard(ctx, page = 0, mode = 'view', isEdit = false) {
     const userId = ctx.from.id;
     const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
     
@@ -253,35 +253,72 @@ if (BOT_TOKEN) {
     snapshot.forEach(doc => {
       programs.push({ id: doc.id, ...doc.data() });
     });
+    programs.reverse(); // Show newest first (roughly)
 
-    const text = programs.length === 0 
-      ? "Привіт! У вас ще немає жодної програми.\nНатисніть кнопку нижче, щоб створити першу."
-      : "🎛 **Ваші програми:**\nОберіть програму для керування або створіть нову:";
+    const perPage = 5;
+    const totalPages = Math.ceil(programs.length / perPage) || 1;
+    page = Math.min(Math.max(0, page), totalPages - 1);
+    
+    const pagePrograms = programs.slice(page * perPage, (page + 1) * perPage);
 
-    let buttons = programs.map(p => {
+    let text = mode === 'view' 
+      ? "🎛 **Ваші програми:**\nОберіть програму для відкриття:" 
+      : "🗑 **Режим видалення:**\nНатисніть на програму, щоб назавжди її видалити:";
+    
+    if (programs.length === 0) text = "Привіт! У вас ще немає жодної програми.";
+
+    let buttons = [];
+    
+    pagePrograms.forEach(p => {
       const title = p.state?.title || `Програма ${p.id}`;
-      return [{ text: `📂 ${title}`, web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }];
+      if (mode === 'view') {
+        buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://t.me/ProgramLive_bot/app?startapp=${p.id}` } }]);
+      } else {
+        buttons.push([{ text: `❌ Видалити "${title}"`, callback_data: `del_${p.id}_${page}` }]);
+      }
     });
-    buttons.push([{ text: "➕ Створити нову", callback_data: "create_program" }]);
+
+    // Pagination row
+    let navRow = [];
+    if (page > 0) navRow.push({ text: "⬅️", callback_data: `dash_${page - 1}_${mode}` });
+    if (totalPages > 1) navRow.push({ text: `${page + 1}/${totalPages}`, callback_data: "ignore" });
+    if (page < totalPages - 1) navRow.push({ text: "➡️", callback_data: `dash_${page + 1}_${mode}` });
+    if (navRow.length > 0) buttons.push(navRow);
+
+    // Controls row
+    if (mode === 'view') {
+      buttons.push([
+        { text: "➕ Створити", callback_data: `create_${page}` },
+        { text: "⚙️ Видалити", callback_data: `dash_${page}_edit` }
+      ]);
+    } else {
+      buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
+    }
 
     const extra = { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } };
 
     if (isEdit) {
-      await ctx.editMessageText(text, extra).catch(console.error);
+      await ctx.editMessageText(text, extra).catch(() => {});
     } else {
-      // Remove old keyboard with a ghost message
       const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } });
       await ctx.deleteMessage(msg.message_id).catch(() => {});
-      // Send real dashboard
       await ctx.reply(text, extra);
     }
   }
 
   bot.start(async (ctx) => {
-    await sendDashboard(ctx, false);
+    await sendDashboard(ctx, 0, 'view', false);
   });
 
-  bot.action("create_program", async (ctx) => {
+  bot.action(/^dash_(\d+)_(\w+)$/, async (ctx) => {
+    const page = parseInt(ctx.match[1]);
+    const mode = ctx.match[2];
+    await sendDashboard(ctx, page, mode, true);
+    await ctx.answerCbQuery();
+  });
+
+  bot.action(/^create_(\d+)$/, async (ctx) => {
+    const page = parseInt(ctx.match[1]);
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const userId = ctx.from.id;
     await db.collection('programs').doc(newId).set({
@@ -291,12 +328,22 @@ if (BOT_TOKEN) {
     });
     
     await ctx.answerCbQuery("✅ Програму створено!");
-    await sendDashboard(ctx, true);
+    await sendDashboard(ctx, 0, 'view', true);
   });
+
+  bot.action(/^del_([A-Z0-9]+)_(\d+)$/, async (ctx) => {
+    const progId = ctx.match[1];
+    const page = parseInt(ctx.match[2]);
+    await db.collection('programs').doc(progId).delete();
+    await ctx.answerCbQuery("🗑 Програму видалено");
+    await sendDashboard(ctx, page, 'edit', true);
+  });
+
+  bot.action("ignore", (ctx) => ctx.answerCbQuery());
 
   // Catch old keyboard button if it's stuck
   bot.hears("➕ Створити нову програму", async (ctx) => {
-    await sendDashboard(ctx, false);
+    await sendDashboard(ctx, 0, 'view', false);
   });
 
   bot.launch();
