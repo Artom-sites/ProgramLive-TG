@@ -196,11 +196,16 @@ function render() {
       card.addEventListener('touchend', () => {
         inner.style.transition = 'transform 0.25s ease';
         if (confirmed) {
-          inner.style.transform = 'translateX(-110%)';
-          card.style.transition = 'opacity 0.2s';
-          card.style.opacity = '0';
-          setTimeout(() => socket.emit('deleteItem', index), 220);
-          if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+          if (confirm('Ви дійсно хочете видалити цей пункт програми?')) {
+            inner.style.transform = 'translateX(-110%)';
+            card.style.transition = 'opacity 0.2s';
+            card.style.opacity = '0';
+            setTimeout(() => socket.emit('deleteItem', index), 220);
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+          } else {
+            inner.style.transform = 'translateX(0)';
+            deleteBg.style.opacity = 0;
+          }
         } else {
           inner.style.transform = 'translateX(0)';
           deleteBg.style.opacity = 0;
@@ -308,6 +313,7 @@ function renderEditAttachments(item) {
 }
 
 window.deleteAttachment = (itemId, url) => {
+  if (!confirm('Ви дійсно хочете видалити цей файл?')) return;
   const filename = url.split('/').pop();
   fetch(`/upload/${itemId}/${filename}`, { method: 'DELETE' });
   const item = state.items.find(i => i.id === itemId);
@@ -319,10 +325,21 @@ window.handleFileUpload = async (input) => {
   if (!file) return;
   const itemId = els.editItemId.value;
   if (!itemId) return;
+
+  let customName = prompt('Введіть назву для файлу:', file.name);
+  if (customName === null) {
+    input.value = '';
+    return;
+  }
+  customName = customName.trim() || file.name;
+
   els.uploadProgress.classList.remove('hidden');
-  els.uploadProgress.textContent = `⏳ Завантаження ${file.name}...`;
+  els.uploadProgress.textContent = `⏳ Завантаження ${customName}...`;
+  
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('customName', customName);
+  
   try {
     const res = await fetch(`/upload/${itemId}`, { method: 'POST', body: formData });
     const data = await res.json();

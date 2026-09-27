@@ -45,7 +45,7 @@ app.post('/upload/:itemId', upload.single('file'), (req, res) => {
 
   const itemId = req.params.itemId;
   const fileUrl = `/files/${req.file.filename}`;
-  const fileName = req.file.originalname;
+  const fileName = req.body.customName || req.file.originalname;
   const fileType = req.file.mimetype;
 
   // Attach file info to matching item in state
