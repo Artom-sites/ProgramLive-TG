@@ -8,7 +8,9 @@ const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
 
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+
 let serviceAccount;
 try {
   if (fs.existsSync(path.join(__dirname, 'firebase-key.json'))) {
@@ -28,8 +30,8 @@ try {
   process.exit(1);
 }
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+initializeApp({ credential: cert(serviceAccount) });
+const db = getFirestore();
 
 const app = express();
 const server = http.createServer(app);
