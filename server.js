@@ -244,16 +244,40 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
   
-  bot.start((ctx) => {
-    ctx.reply("Привіт! Я ProgramLive Bot.\nНатисніть кнопку нижче, щоб створити нову розклад-програму.", {
-      reply_markup: {
-        keyboard: [[{ text: "➕ Створити нову програму" }]],
-        resize_keyboard: true
-      }
+  async function sendDashboard(ctx, isEdit = false) {
+    const userId = ctx.from.id;
+    const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
+    
+    let programs = [];
+    snapshot.forEach(doc => {
+      programs.push({ id: doc.id, ...doc.data() });
     });
+
+    const text = programs.length === 0 
+      ? "Привіт! У вас ще немає жодної програми.\nНатисніть кнопку нижче, щоб створити першу."
+      : "🎛 **Ваші програми:**\nОберіть програму для керування або створіть нову:";
+
+    let buttons = programs.map(p => {
+      const title = p.state?.title || `Програма ${p.id}`;
+      return [{ text: `📂 ${title}`, web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }];
+    });
+    buttons.push([{ text: "➕ Створити нову", callback_data: "create_program" }]);
+
+    const extra = { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } };
+
+    if (isEdit) {
+      await ctx.editMessageText(text, extra).catch(console.error);
+    } else {
+      // clear standard keyboard if it existed
+      await ctx.reply(text, { ...extra, reply_markup: { inline_keyboard: buttons, remove_keyboard: true } });
+    }
+  }
+
+  bot.start(async (ctx) => {
+    await sendDashboard(ctx, false);
   });
 
-  const createProgramHandler = async (ctx) => {
+  bot.action("create_program", async (ctx) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const userId = ctx.from.id;
     await db.collection('programs').doc(newId).set({
@@ -262,16 +286,9 @@ if (BOT_TOKEN) {
       state: DEFAULT_STATE
     });
     
-    // Fallback URL directly opening WebApp with id query param
-    const webAppUrl = `https://programlive-tg.onrender.com/?id=${newId}`;
-    
-    ctx.reply(`✅ Нова програма створена!\nID програми: ${newId}\n\nЩоб поділитися нею, просто перешліть це повідомлення потрібним людям.`, {
-      reply_markup: { inline_keyboard: [[{ text: "📱 Відкрити Програму", web_app: { url: webAppUrl } }]] }
-    });
-  };
-
-  bot.hears("➕ Створити нову програму", createProgramHandler);
-  bot.command('new', createProgramHandler);
+    await ctx.answerCbQuery("✅ Програму створено!");
+    await sendDashboard(ctx, true);
+  });
 
   bot.launch();
 }
