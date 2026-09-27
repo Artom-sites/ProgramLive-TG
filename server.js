@@ -405,6 +405,38 @@ if (BOT_TOKEN) {
     await sendDashboard(ctx, 0, 'view', false);
   });
 
+  // Inline Mode for sharing to groups
+  bot.on('inline_query', async (ctx) => {
+    try {
+      const userId = ctx.from.id;
+      const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
+      
+      const results = snapshot.docs.map(doc => {
+        const p = { id: doc.id, ...doc.data() };
+        const title = p.state?.title || `Програма ${p.id}`;
+        return {
+          type: 'article',
+          id: p.id,
+          title: title,
+          description: 'Надіслати цей розклад у чат',
+          input_message_content: {
+            message_text: `🗓 <b>${title}</b>\n\nНатисніть кнопку нижче, щоб відкрити розклад:`,
+            parse_mode: 'HTML'
+          },
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "📱 Відкрити програму", web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }
+            ]]
+          }
+        };
+      });
+
+      await ctx.answerInlineQuery(results, { cache_time: 0 });
+    } catch (e) {
+      console.error("Inline query error:", e);
+    }
+  });
+
   // Catch old keyboard button if it's stuck
   bot.hears("➕ Створити нову програму", async (ctx) => {
     await sendDashboard(ctx, 0, 'view', false);
