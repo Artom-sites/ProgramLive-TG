@@ -268,8 +268,11 @@ if (BOT_TOKEN) {
     if (isEdit) {
       await ctx.editMessageText(text, extra).catch(console.error);
     } else {
-      // clear standard keyboard if it existed
-      await ctx.reply(text, { ...extra, reply_markup: { inline_keyboard: buttons, remove_keyboard: true } });
+      // Remove old keyboard with a ghost message
+      const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } });
+      await ctx.deleteMessage(msg.message_id).catch(() => {});
+      // Send real dashboard
+      await ctx.reply(text, extra);
     }
   }
 
@@ -288,6 +291,11 @@ if (BOT_TOKEN) {
     
     await ctx.answerCbQuery("✅ Програму створено!");
     await sendDashboard(ctx, true);
+  });
+
+  // Catch old keyboard button if it's stuck
+  bot.hears("➕ Створити нову програму", async (ctx) => {
+    await sendDashboard(ctx, false);
   });
 
   bot.launch();
