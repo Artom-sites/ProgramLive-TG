@@ -322,8 +322,6 @@ if (BOT_TOKEN) {
       if (isEdit) {
         await ctx.editMessageText(text, extra).catch(console.error);
       } else {
-        const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } }).catch(()=>null);
-        if (msg) await ctx.deleteMessage(msg.message_id).catch(() => {});
         await ctx.reply(text, extra).catch(console.error);
       }
     } catch (err) {
