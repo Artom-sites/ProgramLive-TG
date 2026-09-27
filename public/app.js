@@ -144,6 +144,11 @@ function render() {
     if (item.type === 'music') titlePrefix = '🎵 ';
     if (item.type === 'prayer') titlePrefix = '🙏 ';
     if (item.type === 'sermon') titlePrefix = '📖 ';
+    if (item.type === 'poem') titlePrefix = '📜 ';
+    if (item.type === 'testimony') titlePrefix = '🗣 ';
+    if (item.type === 'offering') titlePrefix = '💰 ';
+    if (item.type === 'video') titlePrefix = '🎥 ';
+    if (item.type === 'announcement') titlePrefix = '📢 ';
 
     // Details
     const detailsHTML = `
@@ -464,7 +469,7 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  const url = `https://programlive-tg.onrender.com/?id=${programId}`;
+  const url = `https://t.me/ProgramLive_bot/app?startapp=${programId}`;
   const text = state.title || "Програма Служіння";
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
   

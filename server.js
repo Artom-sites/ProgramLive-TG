@@ -100,10 +100,12 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
     await fileRef.save(req.file.buffer, {
       metadata: { contentType: fileType }
     });
-    // Make file public to get a direct URL (or get a signed URL if bucket doesn't allow public access).
-    // Using makePublic() is easier for Telegram Mini Apps viewing public chords.
-    await fileRef.makePublic();
-    const fileUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    
+    // Generate a long-lived signed URL instead of failing on makePublic
+    const [fileUrl] = await fileRef.getSignedUrl({
+      action: 'read',
+      expires: '01-01-2099'
+    });
 
     let data = await getProgramData(programId);
     let state = data.state;
