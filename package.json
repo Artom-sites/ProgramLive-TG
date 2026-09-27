@@ -1,0 +1,18 @@
+{
+  "name": "telegram-app-pro",
+  "version": "1.0.0",
+  "description": "ProgramLive Telegram Mini App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.4",
+    "telegraf": "^4.16.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
