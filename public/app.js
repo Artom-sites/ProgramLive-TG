@@ -135,6 +135,12 @@ function render() {
       if (!isCurrent) {
         actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', ${index})">Зробити активним</button>`;
       }
+      
+      actionsHTML += `
+        <div style="flex:1"></div>
+        <button class="btn-small" onclick="socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>▲</button>
+        <button class="btn-small" onclick="socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>▼</button>
+      `;
     }
 
     card.innerHTML = `
