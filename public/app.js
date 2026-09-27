@@ -1,4 +1,4 @@
-// Telegram WebApp Setup
+// Setup Telegram WebApp Theme
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.expand();
@@ -6,161 +6,186 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color);
   document.documentElement.style.setProperty('--tg-text', tg.themeParams.text_color);
   document.documentElement.style.setProperty('--tg-hint', tg.themeParams.hint_color);
-  document.documentElement.style.setProperty('--tg-button', tg.themeParams.button_color);
-  document.documentElement.style.setProperty('--tg-button-text', tg.themeParams.button_text_color);
 }
 
 const socket = io();
 
-// STATE & DOM
-let state = { isLive: false, items: [] };
+// State
+let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null };
+let serverTimeOffset = 0;
 let isAdmin = false;
+let timerInterval = null;
 
-const icons = {
-  music: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`,
-  prayer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
-  choir: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
-  word: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
-  info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
-};
-
-const colors = {
-  music: 'rgba(59, 130, 246, 0.4)',  // Blue
-  prayer: 'rgba(168, 85, 247, 0.4)', // Purple
-  choir: 'rgba(236, 72, 153, 0.4)',  // Pink
-  word: 'rgba(234, 179, 8, 0.4)',    // Yellow/Gold
-  info: 'rgba(100, 116, 139, 0.4)'   // Slate
-};
-
+// DOM
 const els = {
-  ambientBg: document.getElementById('ambientBg'),
-  artCover: document.getElementById('artCover'),
-  roleToggleBtn: document.getElementById('roleToggleBtn'),
+  roleToggle: document.getElementById('roleToggle'),
   liveBadge: document.getElementById('liveBadge'),
-  syncStatus: document.getElementById('syncStatus'),
-  heroIconWrap: document.getElementById('heroIconWrap'),
-  heroType: document.getElementById('heroType'),
-  heroCounter: document.getElementById('heroCounter'),
-  heroTitle: document.getElementById('heroTitle'),
-  heroNote: document.getElementById('heroNote'),
-  adminControls: document.getElementById('adminControls'),
-  prevBtn: document.getElementById('prevBtn'),
-  nextBtn: document.getElementById('nextBtn'),
-  floatingToolbar: document.getElementById('floatingToolbar'),
-  toggleLiveBtn: document.getElementById('toggleLiveBtn'),
-  toggleLiveText: document.getElementById('toggleLiveText'),
-  itemsContainer: document.getElementById('itemsContainer')
+  timeline: document.getElementById('timeline'),
+  bottomBar: document.getElementById('bottomBar'),
+  btnPrev: document.getElementById('btnPrev'),
+  btnNext: document.getElementById('btnNext'),
+  btnLive: document.getElementById('btnLive'),
+  modal: document.getElementById('contentModal'),
+  modalTitle: document.getElementById('modalTitle'),
+  modalBody: document.getElementById('modalBody'),
+  btnCloseModal: document.getElementById('btnCloseModal')
 };
 
+// Formatting helpers
+const formatTime = (seconds) => {
+  const m = Math.floor(Math.abs(seconds) / 60).toString().padStart(2, '0');
+  const s = (Math.abs(seconds) % 60).toString().padStart(2, '0');
+  return seconds < 0 ? `-${m}:${s}` : `${m}:${s}`;
+};
+
+// Sync
 socket.on('stateUpdate', (newState) => {
   state = newState;
+  serverTimeOffset = Date.now() - state.serverTime;
   render();
-  // Animate cover
-  els.artCover.classList.add('pulse');
-  setTimeout(() => els.artCover.classList.remove('pulse'), 300);
-  if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
 });
 
-function render() {
-  const activeIndex = state.items.findIndex(i => i.active);
-  const activeItem = activeIndex !== -1 ? state.items[activeIndex] : state.items[0];
-
-  if (activeItem) {
-    els.heroIconWrap.innerHTML = icons[activeItem.category] || icons.info;
-    els.ambientBg.style.background = `radial-gradient(circle at 50% 0%, ${colors[activeItem.category] || colors.info} 0%, transparent 70%)`;
+// Timer Loop
+function startTimerLoop() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!state.isLive || !state.liveStartTime) return;
     
-    els.heroType.textContent = activeItem.type;
-    els.heroCounter.textContent = `${(activeIndex !== -1 ? activeIndex : 0) + 1}/${state.items.length}`;
-    els.heroTitle.textContent = activeItem.title || activeItem.type;
-    els.heroNote.textContent = activeItem.note || "";
-  }
+    const activeItem = state.items[state.activeItemIndex];
+    if (!activeItem) return;
 
-  els.prevBtn.disabled = activeIndex <= 0;
-  
+    const elapsedSeconds = Math.floor((Date.now() - serverTimeOffset - state.liveStartTime) / 1000);
+    const remainingSeconds = activeItem.duration - elapsedSeconds;
+
+    const timerEl = document.getElementById(`timer-${activeItem.id}`);
+    if (timerEl) {
+      timerEl.textContent = formatTime(remainingSeconds);
+      if (remainingSeconds < 0) {
+        timerEl.classList.add('overtime');
+      } else {
+        timerEl.classList.remove('overtime');
+      }
+    }
+  }, 1000);
+}
+
+// Render
+function render() {
+  // Header
   if (state.isLive) {
-    els.liveBadge.style.display = 'flex';
-    els.syncStatus.textContent = "В ефірі";
-    els.syncStatus.style.color = "#ef4444";
-    els.toggleLiveText.textContent = "Зупинити ефір";
+    els.liveBadge.classList.remove('hidden');
+    els.btnLive.classList.add('active');
+    els.btnLive.textContent = "STOP LIVE";
   } else {
-    els.liveBadge.style.display = 'none';
-    els.syncStatus.textContent = "Оновлено";
-    els.syncStatus.style.color = "var(--tg-hint)";
-    els.toggleLiveText.textContent = "Запустити ефір";
+    els.liveBadge.classList.add('hidden');
+    els.btnLive.classList.remove('active');
+    els.btnLive.textContent = "START LIVE";
   }
 
-  els.itemsContainer.innerHTML = '';
+  els.btnPrev.disabled = state.activeItemIndex <= 0;
+  els.btnNext.disabled = state.activeItemIndex >= state.items.length - 1;
+
+  // Timeline
+  els.timeline.innerHTML = '';
   state.items.forEach((item, index) => {
-    const isPast = index < activeIndex;
-    const isCurrent = index === activeIndex;
-    const row = document.createElement('div');
-    row.className = `track-row ${isCurrent ? 'is-current' : ''} ${isPast ? 'is-past' : ''}`;
+    const isCurrent = index === state.activeItemIndex;
+    const isPast = index < state.activeItemIndex;
+
+    const card = document.createElement('div');
+    card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''}`;
     
     if (isAdmin) {
-      row.style.cursor = 'pointer';
-      row.onclick = () => socket.emit('setActiveItem', index);
+      card.style.cursor = 'pointer';
+      card.onclick = (e) => {
+        // Prevent click if clicking a button inside
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+          socket.emit('setActiveItem', index);
+        }
+      };
     }
 
+    // Format duration for display
+    const durMins = Math.floor(item.duration / 60);
+
+    // Build Cues
+    let cuesHTML = '';
+    if (item.cues) {
+      if (item.cues.sound) cuesHTML += `<div class="cue-row"><span class="cue-label l-sound">ЗВУК</span><span class="cue-val">${item.cues.sound}</span></div>`;
+      if (item.cues.media) cuesHTML += `<div class="cue-row"><span class="cue-label l-media">МЕДІА</span><span class="cue-val">${item.cues.media}</span></div>`;
+      if (item.cues.light) cuesHTML += `<div class="cue-row"><span class="cue-label l-light">СВІТЛО</span><span class="cue-val">${item.cues.light}</span></div>`;
+    }
+
+    // Attachments
+    let attachHTML = '';
+    if (item.content) {
+      if (item.content.chords) {
+        attachHTML += `<button class="btn-attach" onclick="openModal('${item.title}', \`${item.content.chords}\`)">🎼 Акорди</button>`;
+      }
+      if (item.content.text) {
+        attachHTML += `<button class="btn-attach" onclick="openModal('${item.title}', \`${item.content.text}\`)">📝 Текст</button>`;
+      }
+    }
+
+    // Admin Reorder
     let adminHTML = '';
     if (isAdmin) {
       adminHTML = `
         <div class="admin-actions">
-          <button class="arr-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-          </button>
-          <button class="arr-btn" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
+          <button class="btn-move" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>▲</button>
+          <button class="btn-move" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>▼</button>
         </div>
       `;
     }
 
-    row.innerHTML = `
-      <div class="track-num">${index + 1}</div>
-      <div class="track-icon-mini">${icons[item.category] || icons.info}</div>
-      <div class="track-details">
-        <div class="td-title">${item.title || item.type}</div>
-        <div class="td-type">${item.type}</div>
+    card.innerHTML = `
+      <div id="timer-${item.id}" class="item-timer">${formatTime(item.duration)}</div>
+      
+      <div class="item-meta">
+        <div class="meta-left">
+          <span class="item-num">${String(index + 1).padStart(2, '0')}</span>
+          <span class="item-type">${item.type}</span>
+        </div>
+        <div class="item-duration">${durMins} хв</div>
       </div>
+      
+      <div class="item-title">${item.title}</div>
+      <div class="item-assignee">👤 ${item.assignee}</div>
+      
+      <div class="item-cues">${cuesHTML}</div>
+      <div class="attachments">${attachHTML}</div>
       ${adminHTML}
     `;
-    els.itemsContainer.appendChild(row);
+    
+    els.timeline.appendChild(card);
   });
+
+  startTimerLoop();
 }
 
-els.roleToggleBtn.addEventListener('click', () => {
+// Modals
+window.openModal = (title, content) => {
+  els.modalTitle.textContent = title;
+  els.modalBody.textContent = content;
+  els.modal.classList.add('open');
+};
+els.btnCloseModal.onclick = () => els.modal.classList.remove('open');
+
+// Interactions
+els.roleToggle.onclick = () => {
   isAdmin = !isAdmin;
-  els.roleToggleBtn.textContent = isAdmin ? "РЕДАКТОР" : "ГЛЯДАЧ";
-  els.roleToggleBtn.classList.toggle('is-admin', isAdmin);
+  els.roleToggle.textContent = isAdmin ? "АДМІН" : "ГЛЯДАЧ";
+  els.roleToggle.classList.toggle('admin-active', isAdmin);
   
   if (isAdmin) {
-    els.adminControls.classList.remove('hidden');
-    els.floatingToolbar.classList.remove('hidden');
+    els.bottomBar.classList.remove('hidden');
     if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
   } else {
-    els.adminControls.classList.add('hidden');
-    els.floatingToolbar.classList.add('hidden');
+    els.bottomBar.classList.add('hidden');
   }
   render();
-});
+};
 
-els.nextBtn.addEventListener('click', () => {
-  const idx = state.items.findIndex(i => i.active);
-  if (idx < state.items.length - 1) {
-    socket.emit('setActiveItem', idx + 1);
-    if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-  }
-});
-
-els.prevBtn.addEventListener('click', () => {
-  const idx = state.items.findIndex(i => i.active);
-  if (idx > 0) {
-    socket.emit('setActiveItem', idx - 1);
-    if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-  }
-});
-
-els.toggleLiveBtn.addEventListener('click', () => {
-  socket.emit('toggleLive');
-  if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
-});
+els.btnPrev.onclick = () => socket.emit('setActiveItem', state.activeItemIndex - 1);
+els.btnNext.onclick = () => socket.emit('setActiveItem', state.activeItemIndex + 1);
+els.btnLive.onclick = () => socket.emit('toggleLive');

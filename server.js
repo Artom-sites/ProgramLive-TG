@@ -12,30 +12,79 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─────────────────────────────────────────────
-// MODERN PRO STATE (Clean data, no emojis, no ALL CAPS)
+// RICH STATE (All PCO Features)
 // ─────────────────────────────────────────────
 let state = {
   isLive: false,
+  liveStartTime: null, // When the current item started (timestamp)
+  activeItemIndex: 1, // Currently active item
   items: [
-    { id: "1", category: "music", type: "Загальний спів", title: "Великий Бог", note: "Тональність C", active: false },
-    { id: "2", category: "prayer", type: "Молитва", title: "Відкриття служіння", note: "Головний мікрофон", active: true },
-    { id: "3", category: "choir", type: "Спів гурту", title: "Я піду за Тобою", note: "Мікрофони 1-4", active: false },
-    { id: "4", category: "word", type: "Проповідь", title: "Віктор", note: "Презентація", active: false },
-    { id: "5", category: "info", type: "Оголошення", title: "Молодіжний табір", note: "Відеоролик", active: false }
+    { 
+      id: "1", 
+      type: "music", 
+      title: "Великий Бог", 
+      duration: 300, // 5 mins in seconds
+      assignee: "Група прославлення",
+      cues: { sound: "Всі мікрофони", media: "Текст (Фон 1)", light: "Яскраве біле" },
+      content: { chords: "Тональність: C\nКуплет 1:\nC G Am F...", text: null }
+    },
+    { 
+      id: "2", 
+      type: "prayer", 
+      title: "Молитва за служіння", 
+      duration: 180, // 3 mins
+      assignee: "Пастор Віктор",
+      cues: { sound: "Мікрофон 1 (Соло)", media: "Заставка 'Молитва'", light: "Приглушене" },
+      content: null
+    },
+    { 
+      id: "3", 
+      type: "choir", 
+      title: "Я піду за Тобою (Хор)", 
+      duration: 240, 
+      assignee: "Молодіжний Хор",
+      cues: { sound: "Стійки 1-6 + Фонограма", media: "Текст", light: "Заливка сцени" },
+      content: { chords: null, text: "Я піду за Тобою..." }
+    },
+    { 
+      id: "4", 
+      type: "word", 
+      title: "Проповідь: Сила віри", 
+      duration: 1800, // 30 mins
+      assignee: "Брат Олексій",
+      cues: { sound: "Гарнітура 1", media: "Презентація (Слайд 1-15)", light: "Фокус на кафедру" },
+      content: null
+    },
+    { 
+      id: "5", 
+      type: "info", 
+      title: "Оголошення та збір", 
+      duration: 300, 
+      assignee: "Брат Сергій",
+      cues: { sound: "Мікрофон 2 + Відео", media: "Відеоролик 'Табір 2024'", light: "Стандартне" },
+      content: null
+    }
   ]
 };
 
 io.on('connection', (socket) => {
-  socket.emit('stateUpdate', state);
+  // Send current state and server time offset
+  socket.emit('stateUpdate', { ...state, serverTime: Date.now() });
   
   socket.on('setActiveItem', (index) => {
-    state.items.forEach((item, i) => item.active = (i === index));
-    io.emit('stateUpdate', state);
+    state.activeItemIndex = index;
+    if (state.isLive) state.liveStartTime = Date.now(); // Reset timer if live
+    io.emit('stateUpdate', { ...state, serverTime: Date.now() });
   });
 
   socket.on('toggleLive', () => {
     state.isLive = !state.isLive;
-    io.emit('stateUpdate', state);
+    if (state.isLive) {
+      state.liveStartTime = Date.now();
+    } else {
+      state.liveStartTime = null;
+    }
+    io.emit('stateUpdate', { ...state, serverTime: Date.now() });
   });
 
   socket.on('moveItem', ({ index, direction }) => {
@@ -44,7 +93,12 @@ io.on('connection', (socket) => {
       const temp = state.items[index];
       state.items[index] = state.items[newIndex];
       state.items[newIndex] = temp;
-      io.emit('stateUpdate', state);
+      
+      // Update active index if moved
+      if (state.activeItemIndex === index) state.activeItemIndex = newIndex;
+      else if (state.activeItemIndex === newIndex) state.activeItemIndex = index;
+
+      io.emit('stateUpdate', { ...state, serverTime: Date.now() });
     }
   });
 });
@@ -52,16 +106,14 @@ io.on('connection', (socket) => {
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
-  const WEB_APP_URL = process.env.WEB_APP_URL || "https://your-app.onrender.com";
+  const WEB_APP_URL = process.env.WEB_APP_URL || "https://programlive-tg.onrender.com";
   bot.command('start', (ctx) => {
-    ctx.reply("Вітаю! Відкрийте програму служіння:", {
-      reply_markup: { inline_keyboard: [[{ text: "Відкрити програму", web_app: { url: WEB_APP_URL } }]] }
+    ctx.reply("Система готова. Відкрийте розклад:", {
+      reply_markup: { inline_keyboard: [[{ text: "Відкрити Програму", web_app: { url: WEB_APP_URL } }]] }
     });
   });
   bot.launch();
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 MODERN SERVER RUNNING ON http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 RUNNING ON PORT ${PORT}`));

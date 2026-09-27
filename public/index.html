@@ -3,80 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ServiceFlow</title>
+  <title>ProgramLive</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Dynamic blurred background -->
-  <div id="ambientBg" class="ambient-bg"></div>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-title">Неділя 10:00</div>
+    <div class="header-actions">
+      <div id="liveBadge" class="badge-live hidden">
+        <div class="pulse-square"></div> LIVE
+      </div>
+      <button id="roleToggle" class="role-toggle">ГЛЯДАЧ</button>
+    </div>
+  </header>
 
-  <div class="app-wrapper">
-    <!-- Top Bar -->
-    <header class="top-nav">
-      <div class="nav-left">
-        <div class="service-badge">НЕДІЛЯ</div>
-      </div>
-      <div class="nav-right">
-        <div id="liveBadge" class="status-indicator">
-          <div class="pulse-dot"></div>
-          <span>LIVE</span>
-        </div>
-        <button id="roleToggleBtn" class="role-switcher">ГЛЯДАЧ</button>
-      </div>
-    </header>
-
-    <!-- Main "Now Playing" Section -->
-    <section class="now-playing">
-      <!-- Art Cover -->
-      <div class="art-cover" id="artCover">
-        <div class="art-icon" id="heroIconWrap">🎵</div>
-      </div>
-
-      <!-- Info -->
-      <div class="track-info">
-        <div class="track-meta">
-          <span id="heroType" class="track-type">Тип</span>
-          <span id="heroCounter" class="track-counter">1/5</span>
-        </div>
-        <h1 id="heroTitle" class="track-title">Завантаження...</h1>
-        <p id="heroNote" class="track-subtitle"></p>
-      </div>
-
-      <!-- Admin Media Controls -->
-      <div id="adminControls" class="media-controls hidden">
-        <button id="prevBtn" class="ctrl-btn secondary">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-        </button>
-        <button id="nextBtn" class="ctrl-btn primary">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        </button>
-      </div>
-    </section>
-
-    <!-- Playlist Section -->
-    <section class="playlist-section">
-      <div class="playlist-header">
-        <h3>Розклад</h3>
-        <span id="syncStatus" class="sync-text">Синхронізація</span>
-      </div>
-      <div id="itemsContainer" class="playlist">
-        <!-- Items inject here -->
-      </div>
-    </section>
+  <!-- Timeline / Program -->
+  <div id="timeline" class="timeline">
+    <!-- Items rendered here via JS -->
   </div>
 
-  <!-- Bottom Admin Action Bar -->
-  <div id="floatingToolbar" class="bottom-action-bar hidden">
-    <button id="toggleLiveBtn" class="action-btn danger">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
-      <span id="toggleLiveText">Запустити ефір</span>
-    </button>
-    <button class="action-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      Додати
-    </button>
+  <!-- Bottom Admin Bar -->
+  <div id="bottomBar" class="bottom-bar hidden">
+    <button id="btnPrev" class="action-btn btn-ctrl">НАЗАД</button>
+    <button id="btnLive" class="action-btn btn-live">START LIVE</button>
+    <button id="btnNext" class="action-btn btn-ctrl">ДАЛІ</button>
+  </div>
+
+  <!-- Content Modal (For chords/text) -->
+  <div id="contentModal" class="modal-overlay">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Матеріали</div>
+      <button class="btn-close" id="btnCloseModal">&times;</button>
+    </div>
+    <div class="modal-content" id="modalBody"></div>
   </div>
 
   <script src="app.js"></script>
