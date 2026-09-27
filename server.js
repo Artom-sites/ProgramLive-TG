@@ -8,9 +8,20 @@ const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
 
-// Firebase Setup
 const admin = require('firebase-admin');
-const serviceAccount = require('./firebase-key.json');
+let serviceAccount;
+try {
+  if (fs.existsSync(path.join(__dirname, 'firebase-key.json'))) {
+    serviceAccount = require('./firebase-key.json');
+  } else if (fs.existsSync('/etc/secrets/firebase-key.json')) {
+    serviceAccount = require('/etc/secrets/firebase-key.json');
+  } else {
+    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS || '{}');
+  }
+} catch (err) {
+  console.error("Failed to load Firebase credentials:", err);
+}
+
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
