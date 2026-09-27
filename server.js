@@ -101,11 +101,9 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
       metadata: { contentType: fileType }
     });
     
-    // Generate a long-lived signed URL instead of failing on makePublic
-    const [fileUrl] = await fileRef.getSignedUrl({
-      action: 'read',
-      expires: '01-01-2099'
-    });
+    // Instead of relying on Firebase public ACLs or IAM signed URLs (which often block on new projects),
+    // we serve the file securely through our own backend proxy.
+    const fileUrl = `/download/${programId}/${itemId}/${uniqueId}${ext}`;
 
     let data = await getProgramData(programId);
     let state = data.state;
@@ -120,6 +118,26 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
   } catch (err) {
     console.error("Upload error:", err);
     res.status(500).json({ error: "Failed to upload" });
+  }
+});
+
+// Proxy route to bypass Firebase IAM/Public ACL restrictions
+app.get('/download/:programId/:itemId/:filename', async (req, res) => {
+  try {
+    const { programId, itemId, filename } = req.params;
+    const storagePath = `programs/${programId}/${itemId}/${filename}`;
+    const file = bucket.file(storagePath);
+    
+    const [exists] = await file.exists();
+    if (!exists) return res.status(404).send('File not found');
+
+    const [metadata] = await file.getMetadata();
+    res.setHeader('Content-Type', metadata.contentType || 'application/octet-stream');
+    
+    file.createReadStream().pipe(res);
+  } catch (err) {
+    console.error("Download proxy error:", err);
+    res.status(500).send('Error downloading file');
   }
 });
 
