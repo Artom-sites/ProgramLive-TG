@@ -9,36 +9,49 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Header -->
   <header class="app-header">
-    <div class="header-title">Неділя 10:00</div>
+    <div class="header-title">Служіння</div>
     <div class="header-actions">
-      <div id="liveBadge" class="badge-live hidden">
-        <div class="pulse-square"></div> LIVE
-      </div>
+      <div id="liveBadge" class="badge-live hidden"><div class="pulse-square"></div> LIVE</div>
       <button id="roleToggle" class="role-toggle">ГЛЯДАЧ</button>
     </div>
   </header>
 
-  <!-- Timeline / Program -->
-  <div id="timeline" class="timeline">
-    <!-- Items rendered here via JS -->
-  </div>
+  <div id="timeline" class="timeline"></div>
 
-  <!-- Bottom Admin Bar -->
   <div id="bottomBar" class="bottom-bar hidden">
     <button id="btnPrev" class="action-btn btn-ctrl">НАЗАД</button>
     <button id="btnLive" class="action-btn btn-live">START LIVE</button>
     <button id="btnNext" class="action-btn btn-ctrl">ДАЛІ</button>
   </div>
 
-  <!-- Content Modal (For chords/text) -->
+  <!-- Info Modal (Chords/Text) -->
   <div id="contentModal" class="modal-overlay">
     <div class="modal-header">
       <div class="modal-title" id="modalTitle">Матеріали</div>
-      <button class="btn-close" id="btnCloseModal">&times;</button>
+      <button class="btn-close" onclick="document.getElementById('contentModal').classList.remove('open')">&times;</button>
     </div>
     <div class="modal-content" id="modalBody"></div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-header">
+      <div class="modal-title">Редагувати пункт</div>
+      <button class="btn-close" onclick="document.getElementById('editModal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-content form-layout">
+      <input type="hidden" id="editIndex">
+      <label>Назва <input id="editTitle" type="text"></label>
+      <div class="form-row">
+        <label style="flex:1">Відповідальний <input id="editAssignee" type="text"></label>
+        <label style="flex:1">Час (хв) <input id="editDuration" type="number"></label>
+      </div>
+      <label>Нотатки для Звуку <input id="editSound" type="text"></label>
+      <label>Нотатки для Медіа <input id="editMedia" type="text"></label>
+      <label>Акорди / Текст <textarea id="editChords" rows="4"></textarea></label>
+      <button id="btnSaveEdit" class="btn-primary" style="width: 100%; margin-top:16px;">Зберегти зміни</button>
+    </div>
   </div>
 
   <script src="app.js"></script>

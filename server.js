@@ -12,78 +12,40 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─────────────────────────────────────────────
-// RICH STATE (All PCO Features)
+// STATE
 // ─────────────────────────────────────────────
 let state = {
   isLive: false,
-  liveStartTime: null, // When the current item started (timestamp)
-  activeItemIndex: 1, // Currently active item
+  liveStartTime: null,
+  activeItemIndex: 0,
   items: [
     { 
-      id: "1", 
-      type: "music", 
-      title: "Великий Бог", 
-      duration: 300, // 5 mins in seconds
+      id: "1", type: "music", title: "Великий Бог", duration: 300, 
       assignee: "Група прославлення",
       cues: { sound: "Всі мікрофони", media: "Текст (Фон 1)", light: "Яскраве біле" },
       content: { chords: "Тональність: C\nКуплет 1:\nC G Am F...", text: null }
     },
     { 
-      id: "2", 
-      type: "prayer", 
-      title: "Молитва за служіння", 
-      duration: 180, // 3 mins
+      id: "2", type: "prayer", title: "Молитва за служіння", duration: 180, 
       assignee: "Пастор Віктор",
       cues: { sound: "Мікрофон 1 (Соло)", media: "Заставка 'Молитва'", light: "Приглушене" },
-      content: null
-    },
-    { 
-      id: "3", 
-      type: "choir", 
-      title: "Я піду за Тобою (Хор)", 
-      duration: 240, 
-      assignee: "Молодіжний Хор",
-      cues: { sound: "Стійки 1-6 + Фонограма", media: "Текст", light: "Заливка сцени" },
-      content: { chords: null, text: "Я піду за Тобою..." }
-    },
-    { 
-      id: "4", 
-      type: "word", 
-      title: "Проповідь: Сила віри", 
-      duration: 1800, // 30 mins
-      assignee: "Брат Олексій",
-      cues: { sound: "Гарнітура 1", media: "Презентація (Слайд 1-15)", light: "Фокус на кафедру" },
-      content: null
-    },
-    { 
-      id: "5", 
-      type: "info", 
-      title: "Оголошення та збір", 
-      duration: 300, 
-      assignee: "Брат Сергій",
-      cues: { sound: "Мікрофон 2 + Відео", media: "Відеоролик 'Табір 2024'", light: "Стандартне" },
-      content: null
+      content: { chords: null, text: null }
     }
   ]
 };
 
 io.on('connection', (socket) => {
-  // Send current state and server time offset
   socket.emit('stateUpdate', { ...state, serverTime: Date.now() });
   
   socket.on('setActiveItem', (index) => {
     state.activeItemIndex = index;
-    if (state.isLive) state.liveStartTime = Date.now(); // Reset timer if live
+    if (state.isLive) state.liveStartTime = Date.now();
     io.emit('stateUpdate', { ...state, serverTime: Date.now() });
   });
 
   socket.on('toggleLive', () => {
     state.isLive = !state.isLive;
-    if (state.isLive) {
-      state.liveStartTime = Date.now();
-    } else {
-      state.liveStartTime = null;
-    }
+    state.liveStartTime = state.isLive ? Date.now() : null;
     io.emit('stateUpdate', { ...state, serverTime: Date.now() });
   });
 
@@ -94,10 +56,25 @@ io.on('connection', (socket) => {
       state.items[index] = state.items[newIndex];
       state.items[newIndex] = temp;
       
-      // Update active index if moved
       if (state.activeItemIndex === index) state.activeItemIndex = newIndex;
       else if (state.activeItemIndex === newIndex) state.activeItemIndex = index;
 
+      io.emit('stateUpdate', { ...state, serverTime: Date.now() });
+    }
+  });
+
+  // NEW: Update Item (Edit feature)
+  socket.on('updateItem', ({ index, updatedData }) => {
+    if (state.items[index]) {
+      // Merge old data with new data
+      state.items[index] = { 
+        ...state.items[index], 
+        title: updatedData.title,
+        duration: updatedData.duration,
+        assignee: updatedData.assignee,
+        cues: { ...state.items[index].cues, sound: updatedData.sound, media: updatedData.media },
+        content: { ...state.items[index].content, chords: updatedData.chords }
+      };
       io.emit('stateUpdate', { ...state, serverTime: Date.now() });
     }
   });

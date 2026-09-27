@@ -1,4 +1,3 @@
-// Setup Telegram WebApp Theme
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.expand();
@@ -6,6 +5,8 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-bg', tg.themeParams.bg_color);
   document.documentElement.style.setProperty('--tg-text', tg.themeParams.text_color);
   document.documentElement.style.setProperty('--tg-hint', tg.themeParams.hint_color);
+  document.documentElement.style.setProperty('--tg-btn', tg.themeParams.button_color);
+  document.documentElement.style.setProperty('--tg-btn-text', tg.themeParams.button_text_color);
 }
 
 const socket = io();
@@ -15,6 +16,7 @@ let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null 
 let serverTimeOffset = 0;
 let isAdmin = false;
 let timerInterval = null;
+let expandedItems = new Set(); // Track manually expanded cards
 
 // DOM
 const els = {
@@ -25,13 +27,23 @@ const els = {
   btnPrev: document.getElementById('btnPrev'),
   btnNext: document.getElementById('btnNext'),
   btnLive: document.getElementById('btnLive'),
-  modal: document.getElementById('contentModal'),
+  
+  contentModal: document.getElementById('contentModal'),
   modalTitle: document.getElementById('modalTitle'),
   modalBody: document.getElementById('modalBody'),
-  btnCloseModal: document.getElementById('btnCloseModal')
+  
+  editModal: document.getElementById('editModal'),
+  editIndex: document.getElementById('editIndex'),
+  editTitle: document.getElementById('editTitle'),
+  editAssignee: document.getElementById('editAssignee'),
+  editDuration: document.getElementById('editDuration'),
+  editSound: document.getElementById('editSound'),
+  editMedia: document.getElementById('editMedia'),
+  editChords: document.getElementById('editChords'),
+  btnSaveEdit: document.getElementById('btnSaveEdit')
 };
 
-// Formatting helpers
+// Utils
 const formatTime = (seconds) => {
   const m = Math.floor(Math.abs(seconds) / 60).toString().padStart(2, '0');
   const s = (Math.abs(seconds) % 60).toString().padStart(2, '0');
@@ -51,7 +63,6 @@ function startTimerLoop() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (!state.isLive || !state.liveStartTime) return;
-    
     const activeItem = state.items[state.activeItemIndex];
     if (!activeItem) return;
 
@@ -91,70 +102,55 @@ function render() {
   state.items.forEach((item, index) => {
     const isCurrent = index === state.activeItemIndex;
     const isPast = index < state.activeItemIndex;
+    const isExpanded = expandedItems.has(item.id) || isCurrent;
 
     const card = document.createElement('div');
-    card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''}`;
+    card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''} ${isExpanded ? 'expanded' : ''}`;
     
-    if (isAdmin) {
-      card.style.cursor = 'pointer';
-      card.onclick = (e) => {
-        // Prevent click if clicking a button inside
-        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-          socket.emit('setActiveItem', index);
-        }
-      };
-    }
-
-    // Format duration for display
-    const durMins = Math.floor(item.duration / 60);
-
-    // Build Cues
-    let cuesHTML = '';
-    if (item.cues) {
-      if (item.cues.sound) cuesHTML += `<div class="cue-row"><span class="cue-label l-sound">ЗВУК</span><span class="cue-val">${item.cues.sound}</span></div>`;
-      if (item.cues.media) cuesHTML += `<div class="cue-row"><span class="cue-label l-media">МЕДІА</span><span class="cue-val">${item.cues.media}</span></div>`;
-      if (item.cues.light) cuesHTML += `<div class="cue-row"><span class="cue-label l-light">СВІТЛО</span><span class="cue-val">${item.cues.light}</span></div>`;
-    }
-
-    // Attachments
-    let attachHTML = '';
-    if (item.content) {
-      if (item.content.chords) {
-        attachHTML += `<button class="btn-attach" onclick="openModal('${item.title}', \`${item.content.chords}\`)">🎼 Акорди</button>`;
+    // Toggle expand on click
+    card.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+      if (!isCurrent) { // Only toggle non-active items, active is always expanded
+        if (expandedItems.has(item.id)) expandedItems.delete(item.id);
+        else expandedItems.add(item.id);
+        render(); // fast re-render
       }
-      if (item.content.text) {
-        attachHTML += `<button class="btn-attach" onclick="openModal('${item.title}', \`${item.content.text}\`)">📝 Текст</button>`;
-      }
-    }
+    };
 
-    // Admin Reorder
-    let adminHTML = '';
+    // Details Content
+    let detailsHTML = `
+      <div class="detail-row"><span class="detail-label">Хто:</span><span class="detail-val">${item.assignee || '—'}</span></div>
+      ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
+      ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
+    `;
+
+    // Action Buttons
+    let actionsHTML = '';
+    if (item.content?.chords) {
+      actionsHTML += `<button class="btn-small" onclick="openContent('${item.title}', \`${item.content.chords}\`)">Акорди/Текст</button>`;
+    }
     if (isAdmin) {
-      adminHTML = `
-        <div class="admin-actions">
-          <button class="btn-move" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: -1})" ${index===0?'disabled':''}>▲</button>
-          <button class="btn-move" onclick="event.stopPropagation(); socket.emit('moveItem', {index: ${index}, direction: 1})" ${index===state.items.length-1?'disabled':''}>▼</button>
-        </div>
-      `;
+      actionsHTML += `<button class="btn-small primary" onclick="openEdit(${index})">Редагувати</button>`;
+      
+      if (!isCurrent) {
+        actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', ${index})">Зробити активним</button>`;
+      }
     }
 
     card.innerHTML = `
-      <div id="timer-${item.id}" class="item-timer">${formatTime(item.duration)}</div>
-      
-      <div class="item-meta">
-        <div class="meta-left">
-          <span class="item-num">${String(index + 1).padStart(2, '0')}</span>
-          <span class="item-type">${item.type}</span>
+      <div class="item-main">
+        <div class="item-left">
+          <span class="item-num">${index + 1}</span>
+          <span class="item-title">${item.title}</span>
         </div>
-        <div class="item-duration">${durMins} хв</div>
+        <div class="item-right">
+          <span id="timer-${item.id}" class="item-timer">${isCurrent && state.isLive ? formatTime(item.duration) : Math.floor(item.duration/60) + ' хв'}</span>
+        </div>
       </div>
-      
-      <div class="item-title">${item.title}</div>
-      <div class="item-assignee">👤 ${item.assignee}</div>
-      
-      <div class="item-cues">${cuesHTML}</div>
-      <div class="attachments">${attachHTML}</div>
-      ${adminHTML}
+      <div class="item-details">
+        ${detailsHTML}
+        <div class="item-actions-row">${actionsHTML}</div>
+      </div>
     `;
     
     els.timeline.appendChild(card);
@@ -164,12 +160,41 @@ function render() {
 }
 
 // Modals
-window.openModal = (title, content) => {
+window.openContent = (title, content) => {
   els.modalTitle.textContent = title;
+  els.modalBody.style.fontFamily = 'monospace';
+  els.modalBody.style.whiteSpace = 'pre-wrap';
   els.modalBody.textContent = content;
-  els.modal.classList.add('open');
+  els.contentModal.classList.add('open');
 };
-els.btnCloseModal.onclick = () => els.modal.classList.remove('open');
+
+window.openEdit = (index) => {
+  const item = state.items[index];
+  if (!item) return;
+  els.editIndex.value = index;
+  els.editTitle.value = item.title || '';
+  els.editAssignee.value = item.assignee || '';
+  els.editDuration.value = Math.floor(item.duration / 60);
+  els.editSound.value = item.cues?.sound || '';
+  els.editMedia.value = item.cues?.media || '';
+  els.editChords.value = item.content?.chords || '';
+  els.editModal.classList.add('open');
+};
+
+els.btnSaveEdit.onclick = () => {
+  const index = parseInt(els.editIndex.value);
+  const updatedData = {
+    title: els.editTitle.value,
+    assignee: els.editAssignee.value,
+    duration: parseInt(els.editDuration.value) * 60,
+    sound: els.editSound.value,
+    media: els.editMedia.value,
+    chords: els.editChords.value
+  };
+  socket.emit('updateItem', { index, updatedData });
+  els.editModal.classList.remove('open');
+  if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+};
 
 // Interactions
 els.roleToggle.onclick = () => {
@@ -177,12 +202,9 @@ els.roleToggle.onclick = () => {
   els.roleToggle.textContent = isAdmin ? "АДМІН" : "ГЛЯДАЧ";
   els.roleToggle.classList.toggle('admin-active', isAdmin);
   
-  if (isAdmin) {
-    els.bottomBar.classList.remove('hidden');
-    if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-  } else {
-    els.bottomBar.classList.add('hidden');
-  }
+  if (isAdmin) els.bottomBar.classList.remove('hidden');
+  else els.bottomBar.classList.add('hidden');
+  
   render();
 };
 
