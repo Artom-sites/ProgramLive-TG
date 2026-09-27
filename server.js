@@ -262,8 +262,8 @@ if (BOT_TOKEN) {
     const pagePrograms = programs.slice(page * perPage, (page + 1) * perPage);
 
     let text = mode === 'view' 
-      ? "🎛 **Ваші програми:**\nОберіть програму для відкриття:" 
-      : "🗑 **Режим видалення:**\nНатисніть на програму, щоб назавжди її видалити:";
+      ? "🎛 <b>Ваші програми:</b>\nОберіть програму для відкриття:" 
+      : "🗑 <b>Режим видалення:</b>\nНатисніть на програму, щоб назавжди її видалити:";
     
     if (programs.length === 0) text = "Привіт! У вас ще немає жодної програми.";
 
@@ -295,14 +295,14 @@ if (BOT_TOKEN) {
       buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
     }
 
-    const extra = { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } };
+    const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } };
 
     if (isEdit) {
-      await ctx.editMessageText(text, extra).catch(() => {});
+      await ctx.editMessageText(text, extra).catch(console.error);
     } else {
-      const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } });
-      await ctx.deleteMessage(msg.message_id).catch(() => {});
-      await ctx.reply(text, extra);
+      const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } }).catch(()=>null);
+      if (msg) await ctx.deleteMessage(msg.message_id).catch(() => {});
+      await ctx.reply(text, extra).catch(console.error);
     }
   }
 
