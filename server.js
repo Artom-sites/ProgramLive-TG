@@ -13,13 +13,19 @@ let serviceAccount;
 try {
   if (fs.existsSync(path.join(__dirname, 'firebase-key.json'))) {
     serviceAccount = require('./firebase-key.json');
+    console.log("Firebase key loaded from ./firebase-key.json");
   } else if (fs.existsSync('/etc/secrets/firebase-key.json')) {
     serviceAccount = require('/etc/secrets/firebase-key.json');
+    console.log("Firebase key loaded from /etc/secrets/firebase-key.json");
+  } else if (process.env.FIREBASE_CREDENTIALS) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+    console.log("Firebase key loaded from environment variables");
   } else {
-    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS || '{}');
+    throw new Error("Cannot find firebase-key.json file or FIREBASE_CREDENTIALS env var");
   }
 } catch (err) {
-  console.error("Failed to load Firebase credentials:", err);
+  console.error("FATAL ERROR loading Firebase key:", err.message);
+  process.exit(1);
 }
 
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
