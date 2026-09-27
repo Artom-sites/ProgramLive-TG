@@ -127,23 +127,25 @@ function render() {
   state.items.forEach((item, index) => {
     const isCurrent = index === state.activeItemIndex;
     const isPast = index < state.activeItemIndex;
-    const isExpanded = expandedItems.has(item.id) || isCurrent;
+    const isExpanded = expandedItems.has(item.id);
 
     const card = document.createElement('div');
     card.dataset.index = index;
-    card.dataset.type = item.type || 'standard';
     card.className = `item-card ${isCurrent ? 'is-active' : ''} ${isPast ? 'is-past' : ''} ${isExpanded ? 'expanded' : ''}`;
 
     // Toggle expand on tap (not during swipe)
     card.onclick = (e) => {
       if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('a')) return;
       if (e.target.closest('.drag-handle')) return;
-      if (!isCurrent) {
-        if (expandedItems.has(item.id)) expandedItems.delete(item.id);
-        else expandedItems.add(item.id);
-        render();
-      }
+      if (expandedItems.has(item.id)) expandedItems.delete(item.id);
+      else expandedItems.add(item.id);
+      render();
     };
+
+    let titlePrefix = '';
+    if (item.type === 'music') titlePrefix = '🎵 ';
+    if (item.type === 'prayer') titlePrefix = '🙏 ';
+    if (item.type === 'sermon') titlePrefix = '📖 ';
 
     // Details
     const detailsHTML = `
@@ -181,7 +183,7 @@ function render() {
           <div class="item-left">
             ${dragHandle}
             <span class="item-num">${index + 1}</span>
-            <span class="item-title">${item.title}</span>
+            <span class="item-title">${titlePrefix}${item.title}</span>
           </div>
           <div class="item-right">
             <span id="timer-${item.id}" class="item-timer">${isCurrent && state.isLive ? formatTime(item.duration) : Math.floor(item.duration / 60) + ' хв'}</span>
@@ -324,14 +326,17 @@ function render() {
     addBtn.style.padding = '12px';
     addBtn.textContent = '➕ Додати пункт';
     addBtn.onclick = () => {
-      socket.emit('addItem', {
-        title: "Новий пункт",
-        duration: 300,
-        assignee: "",
-        cues: { sound: "", media: "" },
-        content: null,
-        attachments: []
-      });
+      els.editIndex.value = -1;
+      els.editItemId.value = '';
+      els.editTitle.value = '';
+      els.editType.value = 'standard';
+      els.editAssignee.value = '';
+      els.editDuration.value = 5;
+      els.editSound.value = '';
+      els.editMedia.value = '';
+      els.editChords.value = '';
+      if (els.editAttachmentsList) els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint)">Збережіть пункт, щоб додавати файли</div>`;
+      els.editModal.classList.add('open');
     };
     els.timeline.appendChild(addBtn);
   }
@@ -428,24 +433,29 @@ window.openEdit = (index) => {
 
 els.btnSaveEdit.onclick = () => {
   const index = parseInt(els.editIndex.value);
-  socket.emit('updateItem', {
-    index,
-    updatedData: {
-      title: els.editTitle.value,
-      type: els.editType.value,
-      assignee: els.editAssignee.value,
-      duration: parseInt(els.editDuration.value) * 60,
-      sound: els.editSound.value,
-      media: els.editMedia.value,
-      chords: els.editChords.value
-    }
-  });
+  const updatedData = {
+    title: els.editTitle.value || "Без назви",
+    type: els.editType.value,
+    assignee: els.editAssignee.value,
+    duration: parseInt(els.editDuration.value || 5) * 60,
+    sound: els.editSound.value,
+    media: els.editMedia.value,
+    chords: els.editChords.value
+  };
+
+  if (index === -1) {
+    socket.emit('addItem', updatedData);
+  } else {
+    socket.emit('updateItem', { index, updatedData });
+  }
+
   els.editModal.classList.remove('open');
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 };
 
 // ── Settings & Share ──
-els.btnSettings.onclick = () => {
+els.headerTitle.onclick = () => {
+  if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";
   els.settingsModal.classList.add('open');
 };
@@ -456,19 +466,14 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  const lines = state.items.map((i, idx) => {
-    let t = `${idx + 1}. ${i.title}`;
-    if (i.assignee) t += ` - ${i.assignee}`;
-    return t;
-  });
-  const text = `📋 ${state.title || 'Служіння'}\n\n${lines.join('\n')}\n\nВідкрити в додатку: https://t.me/ProgramLiveBot/app?startapp=${programId}`;
+  const url = `https://t.me/ProgramLiveBot/app?startapp=${programId}`;
+  const text = state.title || "Програма Служіння";
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
   
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => {
-      tg?.showAlert("✅ Програму скопійовано в буфер обміну! Ви можете вставити її в чат.");
-    });
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
   } else {
-    tg?.showAlert("Скопіюйте це посилання:\nhttps://t.me/ProgramLiveBot/app?startapp=" + programId);
+    window.open(shareUrl, '_blank');
   }
 };
 

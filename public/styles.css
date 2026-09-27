@@ -109,7 +109,6 @@ body {
   border-top: 1px dashed var(--border-subtle);
 }
 .item-card.expanded .item-details { display: block; }
-.item-card.is-active .item-details { display: block; } /* Active always expanded */
 
 .detail-row {
   display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px;
@@ -219,9 +218,6 @@ body {
 
 
 /* Item Types */
-.item-card[data-type="music"] { border-left: 4px solid #3b82f6; }
-.item-card[data-type="prayer"] { border-left: 4px solid #8b5cf6; }
-.item-card[data-type="sermon"] { border-left: 4px solid #10b981; }
 
 
 .btn-icon { background: none; border: none; color: var(--tg-text); cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 50%; opacity: 0.8; transition: opacity 0.2s; }
