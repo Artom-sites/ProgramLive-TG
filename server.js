@@ -120,7 +120,7 @@ app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) =
     res.json({ ok: true, url: fileUrl, name: fileName });
   } catch (err) {
     console.error("Upload error:", err);
-    res.status(500).json({ error: "Failed to upload" });
+    res.status(500).json({ error: err.message || "Failed to upload" });
   }
 });
 

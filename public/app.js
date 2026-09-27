@@ -400,12 +400,15 @@ window.handleFileUpload = async (input) => {
       setTimeout(() => els.uploadProgress.classList.add('hidden'), 2000);
       const item = state.items.find(i => i.id === itemId);
       if (item) renderEditAttachments(item);
+    } else {
+      throw new Error(data.error || "Невідома помилка");
     }
   } catch (e) {
-    els.uploadProgress.textContent = '❌ Помилка завантаження';
-    setTimeout(() => els.uploadProgress.classList.add('hidden'), 3000);
+    els.uploadProgress.textContent = `❌ Помилка: ${e.message}`;
+    setTimeout(() => els.uploadProgress.classList.add('hidden'), 4000);
+  } finally {
+    input.value = '';
   }
-  input.value = '';
 };
 
 // ── Modals ──
