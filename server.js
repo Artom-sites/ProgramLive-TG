@@ -273,7 +273,7 @@ if (BOT_TOKEN) {
       pagePrograms.forEach(p => {
         const title = p.state?.title || `Програма ${p.id}`;
         if (mode === 'view') {
-          buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://t.me/ProgramLive_bot/app?startapp=${p.id}` } }]);
+          buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }]);
         } else {
           buttons.push([{ text: `❌ Видалити "${title}"`, callback_data: `del_${p.id}_${page}` }]);
         }
