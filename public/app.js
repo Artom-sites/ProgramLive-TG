@@ -447,12 +447,12 @@ els.btnSaveEdit.onclick = () => {
 // ── Settings & Share ──
 els.btnSettings.onclick = () => {
   els.settingsTitle.value = state.title || "Програма";
-  els.settingsModal.classList.add('active');
+  els.settingsModal.classList.add('open');
 };
 
 els.btnSaveSettings.onclick = () => {
   socket.emit('updateProgramSettings', { title: els.settingsTitle.value });
-  els.settingsModal.classList.remove('active');
+  els.settingsModal.classList.remove('open');
 };
 
 els.btnShare.onclick = () => {

@@ -223,3 +223,13 @@ body {
 .item-card[data-type="prayer"] { border-left: 4px solid #8b5cf6; }
 .item-card[data-type="sermon"] { border-left: 4px solid #10b981; }
 
+
+.btn-icon { background: none; border: none; color: var(--tg-text); cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 50%; opacity: 0.8; transition: opacity 0.2s; }
+.btn-icon:hover { opacity: 1; background: rgba(128,128,128,0.1); }
+
+.form-group-modern { display: flex; flex-direction: column; margin-bottom: 16px; }
+.form-group-modern label { font-size: 13px; font-weight: 600; color: var(--tg-hint); margin-bottom: 6px; }
+.form-group-modern input, .form-group-modern select, .form-group-modern textarea { padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--tg-text); font-size: 16px; outline: none; transition: border-color 0.2s; }
+.form-group-modern input:focus, .form-group-modern select:focus, .form-group-modern textarea:focus { border-color: var(--tg-btn); }
+.advanced-settings { border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.advanced-settings summary { font-weight: 600; color: var(--tg-text); cursor: pointer; outline: none; }
