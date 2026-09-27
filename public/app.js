@@ -9,7 +9,8 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-btn-text', tg.themeParams.button_text_color);
 }
 
-const socket = io();
+const programId = tg?.initDataUnsafe?.start_param || 'default';
+const socket = io({ query: { programId } });
 
 let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null };
 let serverTimeOffset = 0;
@@ -315,7 +316,7 @@ function renderEditAttachments(item) {
 window.deleteAttachment = (itemId, url) => {
   if (!confirm('Ви дійсно хочете видалити цей файл?')) return;
   const filename = url.split('/').pop();
-  fetch(`/upload/${itemId}/${filename}`, { method: 'DELETE' });
+  fetch(`/upload/${programId}/${itemId}/${filename}`, { method: 'DELETE' });
   const item = state.items.find(i => i.id === itemId);
   if (item) { item.attachments = item.attachments.filter(a => a.url !== url); renderEditAttachments(item); }
 };
@@ -341,7 +342,7 @@ window.handleFileUpload = async (input) => {
   formData.append('customName', customName);
   
   try {
-    const res = await fetch(`/upload/${itemId}`, { method: 'POST', body: formData });
+    const res = await fetch(`/upload/${programId}/${itemId}`, { method: 'POST', body: formData });
     const data = await res.json();
     if (data.ok) {
       els.uploadProgress.textContent = `✅ ${file.name} додано!`;
