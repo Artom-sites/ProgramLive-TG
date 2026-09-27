@@ -67,7 +67,7 @@ body {
 
 /* Drag & Swipe layout */
 .item-card { position: relative; overflow: hidden; }
-.card-inner { position: relative; background: inherit; border-radius: inherit; z-index: 1; }
+.card-inner { position: relative; background: transparent; border-radius: inherit; z-index: 1; }
 
 /* Swipe-to-delete red background */
 .swipe-delete-bg {
