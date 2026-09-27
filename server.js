@@ -246,63 +246,68 @@ if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
   
   async function sendDashboard(ctx, page = 0, mode = 'view', isEdit = false) {
-    const userId = ctx.from.id;
-    const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
-    
-    let programs = [];
-    snapshot.forEach(doc => {
-      programs.push({ id: doc.id, ...doc.data() });
-    });
-    programs.reverse(); // Show newest first (roughly)
+    try {
+      const userId = ctx.from.id;
+      const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
+      
+      let programs = [];
+      snapshot.forEach(doc => {
+        programs.push({ id: doc.id, ...doc.data() });
+      });
+      programs.reverse(); // Show newest first (roughly)
 
-    const perPage = 5;
-    const totalPages = Math.ceil(programs.length / perPage) || 1;
-    page = Math.min(Math.max(0, page), totalPages - 1);
-    
-    const pagePrograms = programs.slice(page * perPage, (page + 1) * perPage);
+      const perPage = 5;
+      const totalPages = Math.ceil(programs.length / perPage) || 1;
+      page = Math.min(Math.max(0, page), totalPages - 1);
+      
+      const pagePrograms = programs.slice(page * perPage, (page + 1) * perPage);
 
-    let text = mode === 'view' 
-      ? "🎛 <b>Ваші програми:</b>\nОберіть програму для відкриття:" 
-      : "🗑 <b>Режим видалення:</b>\nНатисніть на програму, щоб назавжди її видалити:";
-    
-    if (programs.length === 0) text = "Привіт! У вас ще немає жодної програми.";
+      let text = mode === 'view' 
+        ? "🎛 <b>Ваші програми:</b>\nОберіть програму для відкриття:" 
+        : "🗑 <b>Режим видалення:</b>\nНатисніть на програму, щоб назавжди її видалити:";
+      
+      if (programs.length === 0) text = "Привіт! У вас ще немає жодної програми.";
 
-    let buttons = [];
-    
-    pagePrograms.forEach(p => {
-      const title = p.state?.title || `Програма ${p.id}`;
+      let buttons = [];
+      
+      pagePrograms.forEach(p => {
+        const title = p.state?.title || `Програма ${p.id}`;
+        if (mode === 'view') {
+          buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://t.me/ProgramLive_bot/app?startapp=${p.id}` } }]);
+        } else {
+          buttons.push([{ text: `❌ Видалити "${title}"`, callback_data: `del_${p.id}_${page}` }]);
+        }
+      });
+
+      // Pagination row
+      let navRow = [];
+      if (page > 0) navRow.push({ text: "⬅️", callback_data: `dash_${page - 1}_${mode}` });
+      if (totalPages > 1) navRow.push({ text: `${page + 1}/${totalPages}`, callback_data: "ignore" });
+      if (page < totalPages - 1) navRow.push({ text: "➡️", callback_data: `dash_${page + 1}_${mode}` });
+      if (navRow.length > 0) buttons.push(navRow);
+
+      // Controls row
       if (mode === 'view') {
-        buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://t.me/ProgramLive_bot/app?startapp=${p.id}` } }]);
+        buttons.push([
+          { text: "➕ Створити", callback_data: `create_${page}` },
+          { text: "⚙️ Видалити", callback_data: `dash_${page}_edit` }
+        ]);
       } else {
-        buttons.push([{ text: `❌ Видалити "${title}"`, callback_data: `del_${p.id}_${page}` }]);
+        buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
       }
-    });
 
-    // Pagination row
-    let navRow = [];
-    if (page > 0) navRow.push({ text: "⬅️", callback_data: `dash_${page - 1}_${mode}` });
-    if (totalPages > 1) navRow.push({ text: `${page + 1}/${totalPages}`, callback_data: "ignore" });
-    if (page < totalPages - 1) navRow.push({ text: "➡️", callback_data: `dash_${page + 1}_${mode}` });
-    if (navRow.length > 0) buttons.push(navRow);
+      const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } };
 
-    // Controls row
-    if (mode === 'view') {
-      buttons.push([
-        { text: "➕ Створити", callback_data: `create_${page}` },
-        { text: "⚙️ Видалити", callback_data: `dash_${page}_edit` }
-      ]);
-    } else {
-      buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
-    }
-
-    const extra = { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } };
-
-    if (isEdit) {
-      await ctx.editMessageText(text, extra).catch(console.error);
-    } else {
-      const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } }).catch(()=>null);
-      if (msg) await ctx.deleteMessage(msg.message_id).catch(() => {});
-      await ctx.reply(text, extra).catch(console.error);
+      if (isEdit) {
+        await ctx.editMessageText(text, extra).catch(console.error);
+      } else {
+        const msg = await ctx.reply("⏳ Завантаження...", { reply_markup: { remove_keyboard: true } }).catch(()=>null);
+        if (msg) await ctx.deleteMessage(msg.message_id).catch(() => {});
+        await ctx.reply(text, extra).catch(console.error);
+      }
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      await ctx.reply(`⚠️ Помилка завантаження меню: ${err.message}`).catch(()=>null);
     }
   }
 
