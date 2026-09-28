@@ -394,7 +394,7 @@ function render() {
       els.editItemId.value = '';
       
       els.editTitle.value = '';
-      els.editType.value = 'standard';
+      setEditType('sermon', 'Проповідь');
       els.editAssignee.value = '';
       els.editDuration.value = 5;
       els.editSound.value = '';
@@ -501,6 +501,37 @@ window.handleFileUpload = async (input) => {
 };
 
 
+
+function setEditType(type, titleToSet, forceShowTitle = false) {
+  els.editType.value = type;
+  let btnTitle = '';
+  document.querySelectorAll('.type-btn').forEach(btn => {
+    const isActive = btn.dataset.type === type;
+    btn.classList.toggle('active', isActive);
+    if (isActive) btnTitle = btn.dataset.title;
+  });
+  
+  if (titleToSet !== undefined) els.editTitle.value = titleToSet;
+  
+  const titleGroup = document.getElementById('titleGroup');
+  if (type === 'standard' || forceShowTitle || (els.editTitle.value !== btnTitle && els.editTitle.value !== '')) {
+    titleGroup.style.display = 'block';
+  } else {
+    titleGroup.style.display = 'none';
+  }
+}
+
+document.querySelectorAll('.type-btn').forEach(btn => {
+  btn.onclick = () => {
+    setEditType(btn.dataset.type, btn.dataset.title);
+    if (btn.dataset.type !== 'standard') {
+       els.editAssignee.focus();
+    } else {
+       els.editTitle.focus();
+    }
+  };
+});
+
 window.openEdit = (index) => {
   const item = state.items[index];
   if (!item) return;
@@ -508,7 +539,7 @@ window.openEdit = (index) => {
   els.editItemId.value = item.id;
   
   els.editTitle.value = item.title || '';
-  els.editType.value = item.type || 'standard';
+  setEditType(item.type || 'standard', item.title || '');
   els.editAssignee.value = item.assignee || '';
   els.editDuration.value = Math.floor(item.duration / 60);
   els.editSound.value = item.cues?.sound || '';

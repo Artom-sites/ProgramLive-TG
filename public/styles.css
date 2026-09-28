@@ -238,3 +238,7 @@ body {
 .form-group-modern input:focus, .form-group-modern select:focus, .form-group-modern textarea:focus { border-color: var(--tg-btn); }
 .advanced-settings { border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
 .advanced-settings summary { font-weight: 600; color: var(--tg-text); cursor: pointer; outline: none; }
+
+.type-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.type-btn { padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; font-size: 14px; color: var(--tg-text); cursor: pointer; transition: all 0.2s; user-select: none; -webkit-tap-highlight-color: transparent; }
+.type-btn.active { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: var(--tg-theme-button-color, #2481cc); }

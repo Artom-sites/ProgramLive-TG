@@ -119,23 +119,25 @@
       <input type="hidden" id="editItemId">
       
       <div class="form-group-modern">
-        <label>Назва</label>
-        <input id="editTitle" type="text" placeholder="Наприклад: Вступне слово">
+        <label>Що це буде?</label>
+        <div class="type-grid" id="typeGrid">
+          <div class="type-btn" data-type="sermon" data-title="Проповідь">📖 Проповідь</div>
+          <div class="type-btn" data-type="song" data-title="Загальна пісня">🎵 Загальна пісня</div>
+          <div class="type-btn" data-type="solo" data-title="Соло">🎤 Соло</div>
+          <div class="type-btn" data-type="ensemble" data-title="Ансамбль">👥 Ансамбль</div>
+          <div class="type-btn" data-type="choir" data-title="Хор">🎼 Хор</div>
+          <div class="type-btn" data-type="orchestra" data-title="Оркестр">🎻 Оркестр</div>
+          <div class="type-btn" data-type="prayer" data-title="Молитва">🙏 Молитва</div>
+          <div class="type-btn" data-type="standard" data-title="">🔧 Інша назва</div>
+        </div>
+      </div>
+
+      <div class="form-group-modern" id="titleGroup" style="display:none;">
+        <label>Введіть назву пункту</label>
+        <input id="editTitle" type="text" placeholder="Наприклад: Оголошення">
       </div>
       
-      <div class="form-group-modern">
-        <label>Тип пункту</label>
-        <select id="editType">
-          <option value="standard">Звичайний</option>
-          <option value="song">🎵 Пісня</option>
-          <option value="solo">🎤 Соло</option>
-          <option value="ensemble">👥 Ансамбль</option>
-          <option value="orchestra">🎻 Оркестр</option>
-          <option value="choir">🎼 Хор</option>
-          <option value="prayer">🙏 Молитва</option>
-          <option value="sermon">📖 Проповідь</option>
-        </select>
-      </div>
+      <input type="hidden" id="editType" value="standard">
 
       <div class="form-row" style="gap: 12px; margin-bottom: 16px;">
         <div class="form-group-modern" style="flex:2; margin-bottom: 0;">
