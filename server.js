@@ -508,7 +508,22 @@ if (BOT_TOKEN) {
   });
 
   const webhookPath = '/telegram/webhook';
-  app.use(bot.webhookCallback(webhookPath));
+  // Ensure express parses JSON before Telegraf
+    // Use express.json() specifically for the webhook route
+  app.use(webhookPath, express.json());
+  
+  app.post(webhookPath, (req, res, next) => {
+    bot.webhookCallback(webhookPath)(req, res, next);
+  });
+  
+  app.get('/telegram/status', async (req, res) => {
+    try {
+      const info = await bot.telegram.getWebhookInfo();
+      res.json({ ok: true, info });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
 
 // Graceful shutdown
 process.once('SIGINT', () => {
@@ -807,8 +822,7 @@ process.once('SIGTERM', () => {
     const webhookUrl = `https://programlive-tg.onrender.com/telegram/webhook`;
     bot.telegram.setWebhook(webhookUrl, {
       allowed_updates: ['message', 'inline_query', 'chosen_inline_result', 'callback_query'],
-      drop_pending_updates: true
-    }).then(() => {
+      }).then(() => {
       console.log(`Telegram webhook configured\nWebhook URL: ${webhookUrl}`);
       bot.telegram.getWebhookInfo().then(info => {
         console.log(`Webhook info:\nconfigured: true\npending_update_count: ${info.pending_update_count}\nlast_error_message: ${info.last_error_message || 'none'}`);
