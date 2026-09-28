@@ -449,6 +449,27 @@ function render() {
   }
 
   startTimerLoop();
+  
+  if (window.prefetchPdf && state.items) {
+    const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
+    const prefetchItems = [];
+    if (currentIndex !== -1) {
+      prefetchItems.push(state.items[currentIndex]);
+      if (currentIndex + 1 < state.items.length) prefetchItems.push(state.items[currentIndex + 1]);
+    } else if (state.items.length > 0) {
+      prefetchItems.push(state.items[0]);
+    }
+    
+    prefetchItems.forEach(item => {
+      if (item.attachments) {
+        item.attachments.forEach(a => {
+          if (a.name.toLowerCase().endsWith('.pdf') || a.type === 'application/pdf') {
+            window.prefetchPdf(a.url);
+          }
+        });
+      }
+    });
+  }
 }
 
 // ── Attachment UI ──

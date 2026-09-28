@@ -129,24 +129,41 @@ app.post('/upload/telegram', (req, res, next) => {
 
 // Download file via Telegram file_id
 const https = require('https');
+const telegramFileCache = new Map();
+
 app.get('/download/telegram/:fileId', async (req, res) => {
+  const startTime = Date.now();
   try {
     const fileId = req.params.fileId;
     const originalName = req.query.name || 'file';
     
-    const link = await bot.telegram.getFileLink(fileId);
+    let linkStr = telegramFileCache.get(fileId)?.href;
+    const cacheTime = telegramFileCache.get(fileId)?.time || 0;
     
-    https.get(link.href, (telegramRes) => {
+    if (!linkStr || Date.now() - cacheTime > 30 * 60 * 1000) {
+      const t1 = Date.now();
+      const link = await bot.telegram.getFileLink(fileId);
+      console.log(`[PDF Proxy Perf] getFile metadata: ${Date.now() - t1}ms`);
+      linkStr = link.href;
+      telegramFileCache.set(fileId, { href: linkStr, time: Date.now() });
+    }
+    
+    const t2 = Date.now();
+    https.get(linkStr, (telegramRes) => {
+      console.log(`[PDF Proxy Perf] Telegram first response: ${Date.now() - t2}ms`);
       let contentType = telegramRes.headers['content-type'] || 'application/octet-stream';
       if (originalName.toLowerCase().endsWith('.pdf')) {
         contentType = 'application/pdf';
       }
       
       res.setHeader('Content-Type', contentType);
-      // Use 'inline' so the browser opens PDFs instead of downloading them silently
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       
       telegramRes.pipe(res);
+      telegramRes.on('end', () => {
+        console.log(`[PDF Proxy Perf] proxy completed: ${Date.now() - startTime}ms`);
+      });
     }).on('error', (err) => {
       console.error("Stream error:", err);
       res.status(500).send('Error downloading file');
