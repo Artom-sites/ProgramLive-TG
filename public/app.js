@@ -24,6 +24,9 @@ let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null 
 let serverTimeOffset = 0;
 let isAdmin = false;
 let isSubscribed = false;
+let linkedChats = [];
+let linkedChatsMeta = {};
+let privateSubscribersCount = 0;
 let timerInterval = null;
 let expandedItems = new Set();
 
@@ -505,7 +508,47 @@ els.btnSaveEdit.onclick = () => {
 const openSettingsModal = () => {
   if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";
-  document.getElementById('linkCommandText').innerText = `/link ${programId}`;
+  document.getElementById('linkedChatsCount').innerText = linkedChats.length;
+  document.getElementById('privateSubscribersCount').innerText = privateSubscribersCount;
+  
+  const listEl = document.getElementById('linkedChatsList');
+  listEl.innerHTML = '';
+  linkedChats.forEach(chatId => {
+    const title = linkedChatsMeta[chatId] || ('Група ' + chatId);
+    const item = document.createElement('div');
+    item.style.display = 'flex';
+    item.style.justifyContent = 'space-between';
+    item.style.alignItems = 'center';
+    item.style.background = 'var(--bg-color)';
+    item.style.padding = '8px 12px';
+    item.style.borderRadius = '6px';
+    item.style.fontSize = '13px';
+    item.style.color = 'var(--tg-text)';
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.innerText = title;
+    titleSpan.style.overflow = 'hidden';
+    titleSpan.style.textOverflow = 'ellipsis';
+    titleSpan.style.whiteSpace = 'nowrap';
+    titleSpan.style.maxWidth = '60%';
+    
+    const unlinkBtn = document.createElement('button');
+    unlinkBtn.innerText = 'Від\'єднати';
+    unlinkBtn.className = 'btn-secondary';
+    unlinkBtn.style.padding = '4px 8px';
+    unlinkBtn.style.fontSize = '12px';
+    unlinkBtn.onclick = () => {
+      if (confirm('Від\'єднати цю групу?')) {
+        socket.emit('unlinkGroup', chatId);
+        linkedChats = linkedChats.filter(id => id !== chatId);
+        openSettingsModal(); // refresh
+      }
+    };
+    
+    item.appendChild(titleSpan);
+    item.appendChild(unlinkBtn);
+    listEl.appendChild(item);
+  });
   els.settingsModal.classList.add('open');
 };
 

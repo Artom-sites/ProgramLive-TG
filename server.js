@@ -321,7 +321,18 @@ io.on('connection', async (socket) => {
   }
   
   const isSubscribed = (data.privateSubscribers || []).includes(userId);
-  socket.emit('init', { state: data.state, isAdmin, isSubscribed, serverTime: Date.now() });
+  const linkedChats = data.linkedChats || [];
+  const linkedChatsMeta = data.linkedChatsMeta || {};
+  const privateSubscribersCount = (data.privateSubscribers || []).length;
+  socket.emit('init', { 
+    state: data.state, 
+    isAdmin, 
+    isSubscribed,
+    linkedChats,
+    linkedChatsMeta,
+    privateSubscribersCount,
+    serverTime: Date.now() 
+  });
   
   socket.on('toggleSubscription', async (callback) => {
     const uid = socket.data.userId;
@@ -340,6 +351,18 @@ io.on('connection', async (socket) => {
       await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayUnion(uid) });
       callback({ subscribed: true });
     }
+  });
+
+
+  socket.on('unlinkGroup', async (chatId) => {
+    if (!isAdmin) return;
+    try {
+      await db.collection('programs').doc(programId).update({
+        linkedChats: require('firebase-admin/firestore').FieldValue.arrayRemove(chatId),
+        [`linkedChatsMeta.${chatId}`]: require('firebase-admin/firestore').FieldValue.delete()
+      });
+      // push update so admin UI refreshes if needed, or they just refresh manually
+    } catch(e) {}
   });
 
   socket.on('setActiveItem', async (itemId) => {
@@ -519,15 +542,52 @@ process.once('SIGTERM', () => {
   }
 
   bot.start(async (ctx) => {
-    const mainMenu = {
-      keyboard: [
-        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }]
-      ],
-      resize_keyboard: true,
-      is_persistent: true
-    };
-    await ctx.reply("👋 Вітаємо! Скористайтеся меню нижче:", { reply_markup: mainMenu }).catch(console.error);
-  });
+  if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
+    const payload = ctx.payload;
+    if (payload) {
+      try {
+        const doc = await db.collection('programs').doc(payload).get();
+        if (!doc.exists) {
+          return ctx.reply("❌ Програму не знайдено.");
+        }
+        const data = doc.data();
+        const userId = ctx.from.id;
+        if (!data.admins.includes(userId)) {
+          return ctx.reply("❌ У вас немає прав адміністратора для цієї програми.");
+        }
+        
+        try {
+          const member = await ctx.getChatMember(userId);
+          if (member.status !== 'administrator' && member.status !== 'creator') {
+            return ctx.reply("❌ Ви повинні бути адміністратором цієї групи, щоб прив'язати її.");
+          }
+        } catch(e) {
+          console.error("Group admin check failed:", e);
+        }
+        
+        await db.collection('programs').doc(payload).update({
+          linkedChats: require('firebase-admin/firestore').FieldValue.arrayUnion(ctx.chat.id),
+          [`linkedChatsMeta.${ctx.chat.id}`]: ctx.chat.title || 'Група'
+        });
+        
+        return ctx.reply(`✅ Групу успішно прив'язано до розкладу <b>${data.state?.title || payload}</b>!\nТепер сюди автоматично надходитимуть сповіщення під час Live-режиму.`, { parse_mode: 'HTML' });
+      } catch (e) {
+        console.error("Link error via startgroup:", e);
+        return ctx.reply("❌ Помилка прив'язки.");
+      }
+    }
+    return;
+  }
+
+  const mainMenu = {
+    keyboard: [
+      [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }]
+    ],
+    resize_keyboard: true,
+    is_persistent: true
+  };
+  await ctx.reply("👋 Вітаємо! Скористайтеся меню нижче:", { reply_markup: mainMenu }).catch(console.error);
+});
 
   bot.command('link', async (ctx) => {
     const args = ctx.message.text.split(' ');
@@ -551,6 +611,15 @@ process.once('SIGTERM', () => {
       const data = doc.data();
       if (!data.admins.includes(ctx.from.id)) {
         return ctx.reply("❌ Тільки адміністратор програми може прив'язувати її до груп.");
+      }
+      
+      try {
+        const member = await ctx.getChatMember(ctx.from.id);
+        if (member.status !== 'administrator' && member.status !== 'creator') {
+          return ctx.reply("❌ Ви повинні бути адміністратором цієї групи, щоб прив'язати її.");
+        }
+      } catch(e) {
+        console.error("Group admin check failed:", e);
       }
 
       await docRef.update({
