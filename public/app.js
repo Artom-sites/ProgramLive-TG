@@ -523,14 +523,12 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  if (tg && tg.switchInlineQuery) {
-    tg.switchInlineQuery(programId, ['users', 'groups', 'channels']); // Forces chat selection dialog
+  // Use Telegram deep link to force chat selection for inline queries
+  const shareUrl = `https://t.me/ProgramLive_bot?inline=${encodeURIComponent(programId)}`;
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
   } else {
-    const url = `https://t.me/ProgramLive_bot/app?startapp=${programId}`;
-    const text = state.title || "Програма Служіння";
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-    if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
-    else window.open(shareUrl, '_blank');
+    window.open(shareUrl, '_blank');
   }
 };
 
