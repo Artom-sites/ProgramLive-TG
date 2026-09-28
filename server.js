@@ -90,7 +90,7 @@ app.post('/upload/telegram', (req, res, next) => {
   }
 
   try {
-    const caption = `📁 <b>Файл завантажено в систему!</b>\n\nНазва: ${customName}\n<i>Він тепер прикріплений до вашої програми. Ви можете видалити це повідомлення.</i>`;
+    const caption = `📁 <b>Файл завантажено в систему!</b>\n\nНазва: ${customName}`;
     
     const msg = await sendDocumentWithRetry(
       bot, 
@@ -102,6 +102,13 @@ app.post('/upload/telegram', (req, res, next) => {
     );
 
     const file_id = msg.document.file_id;
+    
+    // Auto-delete the message so it doesn't clutter the user's chat
+    try {
+      await bot.telegram.deleteMessage(userId, msg.message_id);
+    } catch (e) {
+      console.error("Could not auto-delete upload message:", e.message);
+    }
     
     res.json({ 
       ok: true, 
