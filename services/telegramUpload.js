@@ -52,13 +52,32 @@ async function sendDocumentWithRetry(bot, chatId, fileBuffer, filename, mimeType
     console.log(`[Upload] mime: ${mimeType}`);
 
     try {
-      const msg = await bot.telegram.sendDocument(chatId, {
-        source: fileBuffer,
-        filename: filename
-      }, {
-        caption: caption,
-        parse_mode: 'HTML'
+      
+      const formData = new FormData();
+      formData.append('chat_id', String(chatId));
+      formData.append('caption', caption);
+      formData.append('parse_mode', 'HTML');
+      
+      const blob = new Blob([fileBuffer], { type: mimeType || 'application/octet-stream' });
+      formData.append('document', blob, filename);
+
+      const url = `https://api.telegram.org/bot${bot.telegram.token}/sendDocument`;
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(60000)
       });
+      
+      if (!response.ok) {
+         let errBody = {};
+         try { errBody = await response.json(); } catch(e) {}
+         const err = new Error(errBody.description || 'Telegram API Error');
+         err.response = { error_code: errBody.error_code };
+         throw err;
+      }
+      
+      const data = await response.json();
+      const msg = data.result;
       
       console.log(`[Upload] Success on attempt ${attempt}`);
       return msg;

@@ -89,6 +89,25 @@
     <div class="modal-content" id="modalBody"></div>
   </div>
 
+  
+  <!-- Share Modal -->
+  <div class="modal-overlay" id="shareModal">
+    <div class="modal-header">
+      <div class="modal-title">Поділитися програмою</div>
+      <button class="btn-close" id="btnCloseShare">&times;</button>
+    </div>
+    <div class="modal-content" style="display:flex; flex-direction:column; gap:16px; padding:20px;">
+      <button class="btn-primary" id="btnShareGroup" style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:16px; padding:16px;">
+        <span>👥</span> Додати в групу
+      </button>
+      <div style="font-size:12px; color:var(--tg-hint); text-align:center; margin-top:-8px;">Група автоматично отримуватиме сповіщення</div>
+      
+      <button class="btn-secondary" id="btnSharePerson" style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:16px; padding:16px;">
+        <span>👤</span> Надіслати людині
+      </button>
+    </div>
+  </div>
+
   <!-- Edit Modal -->
   <div id="editModal" class="modal-overlay">
     <div class="modal-header">
@@ -162,6 +181,6 @@
   </div>
 
 
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
