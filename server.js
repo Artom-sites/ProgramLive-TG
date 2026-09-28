@@ -171,16 +171,15 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
 });
 
 
-// Websockets
-const { setupSockets } = require('./socket/programSocket');
-setupSockets(io, bot, db, BOT_TOKEN);
-
-
 if (BOT_TOKEN) {
   bot = new Telegraf(BOT_TOKEN);
   const { setupBot } = require('./bot/handlers');
-  setupBot(bot, db);
+  setupBot(bot, db, app, express);
 }
+
+// Websockets
+const { setupSockets } = require('./socket/programSocket');
+setupSockets(io, bot, db, BOT_TOKEN);
 
 // Background cleanup task (runs daily)
 // Deletes files older than 48 hours to save storage and keep things clean

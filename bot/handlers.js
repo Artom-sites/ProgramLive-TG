@@ -1,27 +1,29 @@
 const { DEFAULT_STATE } = require('../programs/programService');
 
-function setupBot(bot, db) {
+function setupBot(bot, db, app, express) {
   bot.catch((err, ctx) => {
     console.error(`[Telegram] Update handling error\nupdateType: ${ctx.updateType}\nerror: ${err.message}`);
   });
 
-  const webhookPath = '/telegram/webhook';
-  // Ensure express parses JSON before Telegraf
+  if (app && express) {
+    const webhookPath = '/telegram/webhook';
+    // Ensure express parses JSON before Telegraf
     // Use express.json() specifically for the webhook route
-  app.use(webhookPath, express.json());
-  
-  app.post(webhookPath, (req, res, next) => {
-    bot.webhookCallback(webhookPath)(req, res, next);
-  });
-  
-  app.get('/telegram/status', async (req, res) => {
-    try {
-      const info = await bot.telegram.getWebhookInfo();
-      res.json({ ok: true, info });
-    } catch(e) {
-      res.json({ ok: false, error: e.message });
-    }
-  });
+    app.use(webhookPath, express.json());
+    
+    app.post(webhookPath, (req, res, next) => {
+      bot.webhookCallback(webhookPath)(req, res, next);
+    });
+    
+    app.get('/telegram/status', async (req, res) => {
+      try {
+        const info = await bot.telegram.getWebhookInfo();
+        res.json({ ok: true, info });
+      } catch(e) {
+        res.json({ ok: false, error: e.message });
+      }
+    });
+  }
 
 // Graceful shutdown
 process.once('SIGINT', () => {
