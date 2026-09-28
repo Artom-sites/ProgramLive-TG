@@ -113,7 +113,7 @@ async function triggerProgramChangeNotification(programId, bot, db) {
   // Group Notifications
   const tz = data.state?.adminTimeZone || 'Europe/Kyiv';
   const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-  const text = `🔔 <b>У програмі «${title}» відбулися зміни</b>\n\n<i>Оновлено: ${timeStr}</i>`;
+  const text = `🔔 <b>У програмі «${title}» відбулися зміни</b>\n🕗 ${timeStr}`;
 
   for (const chatId of groups) {
     let oldMsgId = activeGroupNotifications[chatId];
