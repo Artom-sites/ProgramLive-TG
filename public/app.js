@@ -108,7 +108,7 @@ socket.on('init', (data) => {
     privateSubscribers = data.privateSubscribers || [];
     privateSubscribersMeta = data.privateSubscribersMeta || {};
 
-    if (isAdmin) { els.bottomBar.classList.remove('hidden'); console.log('[Recipients Debug] linkedChats: ', linkedChats, 'privateSubscribersCount: ', privateSubscribersCount); }
+    if (isAdmin) { els.bottomBar.classList.remove('hidden'); console.log('[Recipients Debug] linkedChats: ', linkedChats, 'privateSubscribers: ', privateSubscribers); }
     else els.bottomBar.classList.add('hidden');
     
     isSubscribed = !!data.isSubscribed;
