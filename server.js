@@ -585,22 +585,35 @@ if (BOT_TOKEN) {
   });
 
   bot.hears("➕ Створити програму", async (ctx) => {
-    const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const userId = ctx.from.id;
-    
-    // Create a dynamic title based on date
-    const today = new Date();
-    const dateStr = today.toLocaleDateString('uk-UA');
-    const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    newState.title = `Програма ${dateStr}`;
-
-    await db.collection('programs').doc(newId).set({
-      ownerId: userId,
-      admins: [userId],
-      state: newState
+    await ctx.reply("Введіть назву для нової програми:", {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: "Наприклад: Недільне служіння"
+      }
     });
-    await ctx.reply("✅ Програму створено!").catch(()=>null);
-    await sendDashboard(ctx, 0, 'view', false);
+  });
+
+  bot.on('text', async (ctx, next) => {
+    // Якщо це звичайний текст, перевіряємо чи це відповідь на наш запит
+    if (ctx.message?.reply_to_message?.text === "Введіть назву для нової програми:") {
+      const programName = ctx.message.text.trim();
+      const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const userId = ctx.from.id;
+      
+      const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      newState.title = programName || "Нова програма";
+
+      await db.collection('programs').doc(newId).set({
+        ownerId: userId,
+        admins: [userId],
+        state: newState
+      });
+      
+      await ctx.reply(`✅ Програму «${newState.title}» успішно створено!`).catch(()=>null);
+      await sendDashboard(ctx, 0, 'view', false);
+    } else {
+      return next();
+    }
   });
 
   // Inline Mode for sharing to groups
