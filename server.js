@@ -4,6 +4,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Telegraf } = require('telegraf');
+let bot = null;
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
@@ -426,7 +427,7 @@ io.on('connection', async (socket) => {
 
 
 if (BOT_TOKEN) {
-  const bot = new Telegraf(BOT_TOKEN);
+  bot = new Telegraf(BOT_TOKEN);
   
   async function sendDashboard(ctx, page = 0, mode = 'view', isEdit = false) {
     try {
