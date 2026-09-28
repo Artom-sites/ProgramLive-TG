@@ -201,19 +201,18 @@ function render() {
       ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
       ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
       ${item.content?.chords ? `
-        <div class="chords-container" style="margin-top:12px; background:var(--bg-color, #f4f4f5); padding:12px; border-radius:8px; border:1px solid var(--border-subtle, #e5e7eb); font-family:monospace; white-space:pre-wrap; font-size:13px; color:var(--tg-text); overflow-x:auto; line-height:1.5;">
-          <div class="chords-content" id="chords-${item.id}" style="max-height:150px; overflow-y:hidden; transition: max-height 0.3s ease;">${item.content.chords}</div>
-          <button class="btn-small" style="width:100%; margin-top:8px; background:var(--tg-btn); color:var(--tg-text-btn); display:${item.content.chords.split('\n').length > 7 ? 'block' : 'none'};" onclick="
-            const el = document.getElementById('chords-${item.id}');
-            if(el.style.maxHeight === '150px') {
-              el.style.maxHeight = '2000px';
-              this.innerText = 'Згорнути текст';
-            } else {
-              el.style.maxHeight = '150px';
-              this.innerText = 'Розгорнути текст';
-            }
-          ">Розгорнути текст</button>
-        </div>
+        <button class="btn-small" style="margin-top:12px; width:100%; background:var(--bg-card); color:var(--tg-text); border:1px solid var(--border-subtle);" onclick="
+          const el = document.getElementById('chords-${item.id}');
+          if (el.style.display === 'none') {
+            el.style.display = 'block';
+            this.innerText = 'Приховати текст';
+          } else {
+            el.style.display = 'none';
+            this.innerText = 'Показати текст / акорди';
+          }
+        ">Показати текст / акорди</button>
+
+        <div id="chords-${item.id}" style="display:none; margin-top:8px; background:var(--bg-card); padding:12px; border-radius:8px; border:1px solid var(--border-subtle); font-family:monospace; white-space:pre-wrap; font-size:13px; color:var(--tg-text); overflow-x:auto; line-height:1.5;">${item.content.chords}</div>
       ` : ''}
     `;
 
