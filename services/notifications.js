@@ -113,7 +113,7 @@ async function triggerProgramChangeNotification(programId, bot, db) {
   // Group Notifications
   const tz = data.state?.adminTimeZone || 'Europe/Kyiv';
   const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-  const text = `🔔 <b>У програмі відбулися зміни</b>\n\n<b>«${title}»</b>\nВідкрийте актуальну версію програми.\n\n<i>Оновлено: ${timeStr}</i>`;
+  const text = `🔔 <b>У програмі «${title}» відбулися зміни</b>\n\n<i>Оновлено: ${timeStr}</i>`;
 
   for (const chatId of groups) {
     let oldMsgId = activeGroupNotifications[chatId];
@@ -154,7 +154,7 @@ async function triggerProgramChangeNotification(programId, bot, db) {
     try {
       console.log(`[Notify Debug] sending private notification\nuserId: ${userId}`);
       const token = crypto.randomBytes(6).toString('hex');
-      const msg = await bot.telegram.sendMessage(userId, `🔔 <b>У програмі відбулися зміни</b>\n\n<b>«${title}»</b>\nВідкрийте актуальну версію програми.`, {
+      const msg = await bot.telegram.sendMessage(userId, text, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}_${token}` } ]] }
       });
