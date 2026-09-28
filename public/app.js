@@ -11,7 +11,7 @@ if (tg) {
 
 const urlParams = new URLSearchParams(window.location.search);
 const programId = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
-const socket = io({ query: { programId, initData: tg?.initData || '' } });
+const socket = io({ auth: { programId, initData: tg?.initData || '' } });
 
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
@@ -72,13 +72,12 @@ socket.on('init', (data) => {
     state = data.state;
     isAdmin = data.isAdmin;
     serverTimeOffset = Date.now() - data.serverTime;
-    if (data.debugValidation !== 'OK') alert('Validation failed: ' + data.debugValidation);
+
     if (isAdmin) els.bottomBar.classList.remove('hidden');
     else els.bottomBar.classList.add('hidden');
     render();
   } catch(e) {
-    els.headerTitle.textContent = "Error: " + e.message;
-    alert("Init Error: " + e.message + "\n" + e.stack);
+    console.error('Init Error:', e);
   }
 });
 

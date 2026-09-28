@@ -272,22 +272,67 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
 
 // Websockets
 io.on('connection', async (socket) => {
-  const programId = socket.handshake.query.programId || 'default';
-  const initData = socket.handshake.query.initData || '';
+  const auth = socket.handshake.auth || {};
+  const query = socket.handshake.query || {};
+  const programId = auth.programId || query.programId || 'default';
+  const initData = auth.initData || '';
   
-  // VALIDATE INIT DATA
-  const user = validateWebAppData(initData, BOT_TOKEN);
-  const userId = user ? user.id : null;
+  // --- SERVER-SIDE DEBUG LOGGING ---
+  console.log(`[Auth Debug] New connection for programId: ${programId}`);
+  console.log(`[Auth Debug] initData exists: ${!!initData}`);
+  
+  let userId = null;
+  if (initData) {
+    try {
+      const q = new URLSearchParams(initData);
+      const keys = Array.from(q.keys());
+      console.log(`[Auth Debug] Received parameters: ${keys.join(', ')}`);
+      
+      const hash = q.get('hash');
+      console.log(`[Auth Debug] hash exists: ${!!hash}`);
+      
+      if (hash) {
+        q.delete('hash');
+        const sortedKeys = Array.from(q.keys()).sort();
+        const dataCheckString = sortedKeys.map(k => k + '=' + q.get(k)).join('\n');
+        
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+        
+        console.log(`[Auth Debug] calculatedHash === receivedHash: ${calculatedHash === hash}`);
+        
+        if (calculatedHash === hash) {
+          const userStr = q.get('user');
+          if (userStr) {
+            const parsedUser = JSON.parse(userStr);
+            userId = parsedUser.id;
+            console.log(`[Auth Debug] Validation SUCCESS. User ID: ${userId}`);
+          } else {
+            console.log(`[Auth Debug] Validation failed: 'user' parameter is missing.`);
+          }
+        } else {
+          console.log(`[Auth Debug] Validation failed: Hash mismatch.`);
+        }
+      } else {
+        console.log(`[Auth Debug] Validation failed: No hash provided.`);
+      }
+    } catch (e) {
+      console.log(`[Auth Debug] Validation Exception: ${e.message}`);
+    }
+  } else {
+    console.log(`[Auth Debug] Validation skipped: No initData.`);
+  }
+  // ---------------------------------
+
   socket.data.userId = userId;
-  
   socket.join(programId);
   
   let data = await getProgramData(programId);
   
-  // MUST HAVE VALID USER AND BE IN ADMINS TO HAVE WRITE PERMISSIONS
   const isAdmin = userId !== null && (data.admins.includes(userId) || data.admins.length === 0);
+  console.log(`[Auth Debug] Final isAdmin status: ${isAdmin}\n`);
   
-  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now(), debugValidation });
+  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now() });
   
   socket.on('setActiveItem', async (itemId) => {
     if (!isAdmin) return;
