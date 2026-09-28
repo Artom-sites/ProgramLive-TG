@@ -10,8 +10,15 @@ if (tg) {
 }
 
 const urlParams = new URLSearchParams(window.location.search);
-const programId = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
-const socket = io({ auth: { programId, initData: tg?.initData || '' } });
+const startParam = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
+let programId = startParam;
+let notifyToken = '';
+if (startParam.includes('_')) {
+  const parts = startParam.split('_');
+  programId = parts[0];
+  notifyToken = parts[1];
+}
+const socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken } });
 
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
