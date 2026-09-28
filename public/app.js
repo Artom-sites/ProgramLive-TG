@@ -107,6 +107,7 @@ function startTimerLoop() {
 function render() {
   els.headerTitle.textContent = state.title || "Програма";
   els.btnShare.classList.toggle('hidden', !isAdmin);
+  document.getElementById('btnSettingsHeader').classList.toggle('hidden', !isAdmin);
 
   if (state.isLive) {
     els.liveBadge.classList.remove('hidden');
@@ -486,12 +487,15 @@ els.btnSaveEdit.onclick = () => {
 };
 
 // ── Settings & Share ──
-els.headerTitle.onclick = () => {
+const openSettingsModal = () => {
   if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";
   document.getElementById('linkCommandText').innerText = `/link ${programId}`;
   els.settingsModal.classList.add('open');
 };
+
+els.headerTitle.onclick = openSettingsModal;
+document.getElementById('btnSettingsHeader').onclick = openSettingsModal;
 
 document.getElementById('btnNotifyGroups').onclick = async () => {
   const btn = document.getElementById('btnNotifyGroups');
