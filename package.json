@@ -4,6 +4,8 @@
   "description": "ProgramLive Telegram Mini App",
   "main": "server.js",
   "scripts": {
+    "test": "node --test tests/*.test.js",
+    "verify": "npm run check && npm run test",
     "start": "node server.js",
     "check": "node tests/smoke.js",
     "test:smoke": "node tests/smoke.js"
