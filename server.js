@@ -422,7 +422,16 @@ io.on('connection', async (socket) => {
       s.items[index] = s.items[newIndex];
       s.items[newIndex] = temp;
       s = await updateProgramState(programId, { items: s.items });
-      if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
+      
+      const current = await getProgramData(programId);
+      const isLive = current.state.isLive === true;
+      
+      console.log(`[Notify Debug] reorder received\nprogramId: ${programId}\nisAdmin: ${isAdmin}\nisLive: ${isLive}\nitems changed: true`);
+      
+      if (isLive) {
+        scheduleProgramChangeNotification(programId, bot, db);
+      }
+      
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
@@ -493,8 +502,15 @@ io.on('connection', async (socket) => {
 
 if (BOT_TOKEN) {
   bot = new Telegraf(BOT_TOKEN);
+  
+  bot.catch((err, ctx) => {
+    console.error(`[Telegram] Update handling error\nupdateType: ${ctx.updateType}\nerror: ${err.message}`);
+  });
 
-// Graceful shutdown to prevent 409 Conflict polling errors on Render
+  const webhookPath = '/telegram/webhook';
+  app.use(bot.webhookCallback(webhookPath));
+
+// Graceful shutdown
 process.once('SIGINT', () => {
   if (bot) bot.stop('SIGINT');
   process.exit(0);
@@ -785,12 +801,25 @@ process.once('SIGTERM', () => {
     await sendDashboard(ctx, 0, 'view', false);
   });
 
-  // Delete webhook and use long-polling. Free Render instances sleep, causing webhooks to timeout and fail.
-  // We use drop_pending_updates to minimize the "double process" overlap on restarts.
-  bot.telegram.deleteWebhook().then(() => {
-    console.log("Webhook deleted, starting long-polling...");
-    bot.launch({ drop_pending_updates: true });
-  }).catch(console.error);
+  
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+  if (isProduction) {
+    const webhookUrl = `https://programlive-tg.onrender.com/telegram/webhook`;
+    bot.telegram.setWebhook(webhookUrl, {
+      allowed_updates: ['message', 'inline_query', 'chosen_inline_result', 'callback_query'],
+      drop_pending_updates: true
+    }).then(() => {
+      console.log(`Telegram webhook configured\nWebhook URL: ${webhookUrl}`);
+      bot.telegram.getWebhookInfo().then(info => {
+        console.log(`Webhook info:\nconfigured: true\npending_update_count: ${info.pending_update_count}\nlast_error_message: ${info.last_error_message || 'none'}`);
+      });
+    }).catch(console.error);
+  } else {
+    bot.telegram.deleteWebhook().then(() => {
+      console.log("Development mode: starting long-polling...");
+      bot.launch({ drop_pending_updates: true });
+    }).catch(console.error);
+  }
 }
 
 // Background cleanup task (runs daily)

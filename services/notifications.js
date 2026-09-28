@@ -60,13 +60,20 @@ async function sendLiveStarted(programId, bot, db) {
 }
 
 function scheduleProgramChangeNotification(programId, bot, db) {
+  console.log(`[Notify Debug] scheduling program change notification\nprogramId: ${programId}`);
   if (debounceTimers.has(programId)) {
+    console.log('[Notify Debug] debounce reset');
     clearTimeout(debounceTimers.get(programId));
   }
-  debounceTimers.set(programId, setTimeout(() => {
-    triggerProgramChangeNotification(programId, bot, db);
+  debounceTimers.set(programId, setTimeout(async () => {
+    try {
+      await triggerProgramChangeNotification(programId, bot, db);
+    } catch (err) {
+      console.error('[Notify Debug] trigger failed:', err);
+    }
     debounceTimers.delete(programId);
   }, 20000));
+  console.log(`[Notify Debug] debounce scheduled\nprogramId: ${programId}\ndelay: 20000`);
 }
 
 async function triggerProgramChangeNotification(programId, bot, db) {
@@ -77,6 +84,8 @@ async function triggerProgramChangeNotification(programId, bot, db) {
 
   const groups = data.linkedChats || [];
   const users = data.privateSubscribers || [];
+  
+  console.log(`[Notify Debug] trigger fired\nprogramId: ${programId}\ngroups: ${groups.length}\nprivateSubscribers: ${users.length}`);
 
   const activeGroupNotifications = data.activeGroupNotifications || {};
   const activePrivateNotifications = data.activePrivateNotifications || {};
@@ -91,12 +100,14 @@ async function triggerProgramChangeNotification(programId, bot, db) {
        try { await bot.telegram.deleteMessage(chatId, activeGroupNotifications[chatId]); } catch(e) {}
     }
     try {
+      console.log(`[Notify Debug] sending group notification\nchatId: ${chatId}`);
       const msg = await bot.telegram.sendMessage(chatId, `🔔 <b>У програмі відбулися зміни</b>\n\n<b>«${title}»</b>\nВідкрийте актуальну версію програми.`, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}` } ]] }
       });
       newActiveGroupNotifications[chatId] = msg.message_id;
     } catch(e) {
+      console.error(`[Notify Debug] Telegram send failed\nrecipientType: group\nrecipientId: ${chatId}\nerror: ${e.message}`);
       if (e.message.includes('bot was kicked') || e.message.includes('chat not found')) {
         await db.collection('programs').doc(programId).update({ linkedChats: FieldValue.arrayRemove(chatId) });
       }
@@ -112,6 +123,7 @@ async function triggerProgramChangeNotification(programId, bot, db) {
        } catch(e) {}
     }
     try {
+      console.log(`[Notify Debug] sending private notification\nuserId: ${userId}`);
       const token = crypto.randomBytes(6).toString('hex');
       const msg = await bot.telegram.sendMessage(userId, `🔔 <b>У програмі відбулися зміни</b>\n\n<b>«${title}»</b>\nВідкрийте актуальну версію програми.`, {
         parse_mode: 'HTML',
@@ -120,6 +132,7 @@ async function triggerProgramChangeNotification(programId, bot, db) {
       notifyTokensToSave[`notifyTokens.${token}`] = { chatId: userId, messageId: msg.message_id, createdAt: Date.now() };
       newActivePrivateNotifications[userId] = { messageId: msg.message_id, token };
     } catch (e) {
+      console.error(`[Notify Debug] Telegram send failed\nrecipientType: private\nrecipientId: ${userId}\nerror: ${e.message}`);
       if (e.message.includes('bot was blocked') || e.message.includes('chat not found') || e.message.includes("bot can't initiate")) {
         await db.collection('programs').doc(programId).update({ privateSubscribers: FieldValue.arrayRemove(userId) });
       }
