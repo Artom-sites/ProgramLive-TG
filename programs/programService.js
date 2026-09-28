@@ -16,18 +16,15 @@ function generateId() {
 
 // Database Helpers
 async function getProgramData(programId) {
+  if (!programId) return null;
   const doc = await db.collection('programs').doc(programId).get();
-  let data = null;
-  if (doc.exists) {
-    data = doc.data();
-    if (data.items && !data.state) {
-      data = { ownerId: null, admins: [], state: { title: "Програма", ...data } };
-    }
-    if (!data.state.title) data.state.title = "Програма";
-  } else {
-    data = { ownerId: null, admins: [], state: DEFAULT_STATE };
-    await db.collection('programs').doc(programId).set(data);
+  if (!doc.exists) return null;
+
+  let data = doc.data();
+  if (data.items && !data.state) {
+    data = { ownerId: data.ownerId || null, admins: data.admins || [], state: { title: "Програма", ...data } };
   }
+  if (!data.state.title) data.state.title = "Програма";
 
   let changed = false;
   if (data.state && data.state.items) {
@@ -57,8 +54,37 @@ async function getProgramData(programId) {
   return data;
 }
 
+async function createProgram(programId, ownerId, title) {
+  const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  newState.title = title || "Нова програма";
+  
+  const data = {
+    ownerId: ownerId,
+    admins: [ownerId],
+    state: newState
+  };
+  
+  await db.collection('programs').doc(programId).set(data);
+  return data;
+}
+
+async function getUserPrograms(userId) {
+  if (!userId) return [];
+  const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
+  return snapshot.docs.map(doc => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      title: d.state?.title || `Програма ${doc.id}`,
+      isLive: d.state?.isLive || false,
+      itemCount: d.state?.items?.length || 0
+    };
+  });
+}
+
 async function updateProgramState(programId, stateUpdates) {
   const data = await getProgramData(programId);
+  if (!data) throw new Error("Program not found");
   const newState = { ...data.state, ...stateUpdates };
   await db.collection('programs').doc(programId).update({ state: newState });
   return newState;
@@ -66,6 +92,8 @@ async function updateProgramState(programId, stateUpdates) {
 
 module.exports = {
   getProgramData,
+  createProgram,
+  getUserPrograms,
   updateProgramState,
   DEFAULT_STATE,
   generateId

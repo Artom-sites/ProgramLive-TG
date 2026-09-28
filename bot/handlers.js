@@ -230,14 +230,8 @@ process.once('SIGTERM', () => {
 
     const today = new Date();
     const dateStr = today.toLocaleDateString('uk-UA');
-    const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    newState.title = `Програма ${dateStr}`;
-
-    await db.collection('programs').doc(newId).set({
-      ownerId: userId,
-      admins: [userId],
-      state: newState
-    });
+    const programNameFinal = `Програма ${dateStr}`;
+    await require('../programs/programService').createProgram(newId, userId, programNameFinal);
     
     await ctx.answerCbQuery("✅ Програму створено!");
     await sendDashboard(ctx, 0, 'view', true);
@@ -278,16 +272,10 @@ process.once('SIGTERM', () => {
       const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const userId = ctx.from.id;
       
-      const newState = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      newState.title = programName || "Нова програма";
-
-      await db.collection('programs').doc(newId).set({
-        ownerId: userId,
-        admins: [userId],
-        state: newState
-      });
+      const programNameFinal = programName || "Нова програма";
+      await require('../programs/programService').createProgram(newId, userId, programNameFinal);
       
-      await ctx.reply(`✅ Програму «${newState.title}» успішно створено!\nНатисніть кнопку нижче, щоб додати пункти розкладу.`, {
+      await ctx.reply(`✅ Програму «${programNameFinal}» успішно створено!\nНатисніть кнопку нижче, щоб додати пункти розкладу.`, {
         reply_markup: {
           inline_keyboard: [[
             { text: "📱 Відкрити програму", web_app: { url: `https://programlive-tg.onrender.com/?id=${newId}` } }

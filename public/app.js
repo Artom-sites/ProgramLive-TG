@@ -10,10 +10,10 @@ if (tg) {
 }
 
 const urlParams = new URLSearchParams(window.location.search);
-const startParam = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
+let startParam = tg?.initDataUnsafe?.start_param || urlParams.get('id') || null;
 let programId = startParam;
 let notifyToken = '';
-if (startParam.includes('_')) {
+if (startParam && startParam.includes('_')) {
   const parts = startParam.split('_');
   programId = parts[0];
   notifyToken = parts[1];
@@ -29,7 +29,23 @@ window.openAttachment = function(url, name, type) {
   tg.openLink(window.location.origin + url);
 };
 
-const socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken } });
+let socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken } });
+
+socket.on('programError', (errCode) => {
+  if (errCode === 'PROGRAM_NOT_FOUND') {
+    document.body.innerHTML = `
+      <div style="padding: 20px; text-align: center; color: var(--tg-text); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+        <h2>Програму не знайдено 😕</h2>
+        <p style="color: var(--tg-hint); margin-bottom: 20px;">Можливо, посилання застаріло, або програму було видалено.</p>
+        <button class="btn-primary" onclick="goHome()" style="padding: 12px 24px;">До моїх програм</button>
+      </div>
+    `;
+  }
+});
+
+window.goHome = function() {
+  window.location.href = window.location.pathname; // strip query params
+};
 
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
@@ -822,4 +838,88 @@ if (els.btnSubscribe) {
       }
     });
   };
+}
+
+// ── HOME VIEW LOGIC ──
+function initHomeView() {
+  document.querySelector('.app-header').style.display = 'none';
+  document.getElementById('timeline').style.display = 'none';
+  
+  if (isAdmin && document.querySelector('.btn-small.primary')) {
+     document.querySelector('.btn-small.primary').style.display = 'none';
+  }
+  
+  let homeDiv = document.getElementById('home-view');
+  if (!homeDiv) {
+    homeDiv = document.createElement('div');
+    homeDiv.id = 'home-view';
+    homeDiv.className = 'home-view';
+    document.body.insertBefore(homeDiv, document.body.firstChild);
+  }
+  
+  homeDiv.innerHTML = `
+    <div style="padding: 20px; font-family: sans-serif; color: var(--tg-text);">
+      <h2 style="margin-top: 0; margin-bottom: 20px;">Мої програми</h2>
+      <div id="home-programs-list">⏳ Завантаження...</div>
+      <button class="btn-primary" style="width: 100%; margin-top: 20px; padding: 14px;" onclick="createProgramFromHome()">➕ Створити програму</button>
+    </div>
+  `;
+  
+  socket.emit('getMyPrograms', (res) => {
+    const list = document.getElementById('home-programs-list');
+    if (!res || !res.success) {
+      list.innerHTML = `<span style="color:var(--tg-theme-destructive-text-color, red)">Помилка завантаження</span>`;
+      return;
+    }
+    
+    if (res.programs.length === 0) {
+      list.innerHTML = `<div style="text-align: center; color: var(--tg-hint); margin: 30px 0;">У вас ще немає програм. Створіть першу!</div>`;
+      return;
+    }
+    
+    list.innerHTML = res.programs.map(p => `
+      <div class="home-program-card" onclick="window.location.href = '?id=${p.id}'" style="
+        background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+        border-radius: 12px; padding: 16px; margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
+        display: flex; justify-content: space-between; align-items: center;
+      ">
+        <div>
+          <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">🎼 ${p.title}</div>
+          <div style="font-size: 13px; color: var(--tg-hint);">${p.itemCount} пунктів</div>
+        </div>
+        ${p.isLive ? `<div style="background: red; color: white; font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px;">LIVE</div>` : ''}
+      </div>
+    `).join('');
+  });
+}
+
+window.createProgramFromHome = function() {
+  const title = prompt("Введіть назву для нової програми:", "Нова програма");
+  if (!title) return;
+  socket.emit('createNewProgram', title, (res) => {
+    if (res && res.success && res.programId) {
+      window.location.href = '?id=' + res.programId;
+    } else {
+      alert("Помилка створення програми");
+    }
+  });
+};
+
+if (!programId) {
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", initHomeView); } else { initHomeView(); }
+}
+
+// ── NAVIGATION & BACK BUTTON ──
+function handleProgramBack() {
+  const pdfViewer = document.getElementById('pdf-viewer');
+  if (pdfViewer && pdfViewer.style.display === 'flex') {
+    return; // Let PDF viewer's listener handle it
+  }
+  window.goHome();
+}
+
+if (tg?.BackButton && !tg?.initDataUnsafe?.start_param && programId) {
+  tg.BackButton.show();
+  tg.BackButton.onClick(handleProgramBack);
 }

@@ -1,5 +1,5 @@
 const { validateTelegramInitData } = require('../services/telegramAuth');
-const { getProgramData, updateProgramState, generateId } = require('../programs/programService');
+const { getProgramData, updateProgramState, getUserPrograms, generateId } = require('../programs/programService');
 const { verifyBotCanMessage, sendLiveStarted, scheduleProgramChangeNotification } = require('../services/notifications');
 const crypto = require('crypto');
 
@@ -7,11 +7,12 @@ function setupSockets(io, bot, db, BOT_TOKEN) {
 io.on('connection', async (socket) => {
   const auth = socket.handshake.auth || {};
   const query = socket.handshake.query || {};
-  const programId = auth.programId || query.programId || 'default';
+  const rawProgramId = auth.programId || query.programId;
+  const programId = (rawProgramId && rawProgramId !== 'null' && rawProgramId !== 'undefined') ? rawProgramId : null;
   const initData = auth.initData || '';
   
   // --- SERVER-SIDE DEBUG LOGGING ---
-  console.log(`[Auth Debug] New connection for programId: ${programId}`);
+  console.log(`[Auth Debug] New connection for programId: ${programId || 'HOME_MODE'}`);
   
   let userId = null;
   const parsedUser = validateTelegramInitData(initData, BOT_TOKEN, true);
@@ -20,12 +21,40 @@ io.on('connection', async (socket) => {
     socket.data.firstName = parsedUser.first_name || 'Користувач';
   }
   // ---------------------------------
-
   socket.data.userId = userId;
-  socket.join(programId);
   
+  if (!programId) {
+    // HOME MODE
+    socket.on('getMyPrograms', async (callback) => {
+      try {
+        const programs = await getUserPrograms(userId);
+        callback({ success: true, programs });
+      } catch(e) {
+        callback({ success: false, error: e.message });
+      }
+    });
+    
+    socket.on('createNewProgram', async (title, callback) => {
+      try {
+        if (!userId) return callback({ success: false, error: "Unauthorized" });
+        const { createProgram } = require('../programs/programService');
+        const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await createProgram(newId, userId, title);
+        callback({ success: true, programId: newId });
+      } catch(e) {
+        callback({ success: false, error: e.message });
+      }
+    });
+    return;
+  }
+
   let data = await getProgramData(programId);
+  if (!data) {
+    socket.emit('programError', 'PROGRAM_NOT_FOUND');
+    return;
+  }
   
+  socket.join(programId);
   const isAdmin = userId !== null && (data.admins.includes(userId) || data.admins.length === 0);
   console.log(`[Auth Debug] Final isAdmin status: ${isAdmin}\n`);
   
@@ -71,7 +100,7 @@ io.on('connection', async (socket) => {
     const firstName = socket.data.firstName || 'Користувач';
     if (!uid) return callback({error: "Unauthorized"});
 
-    let pData = await getProgramData(programId);
+    let pData = await getProgramData(programId); if(!pData) return;
     let subs = pData.privateSubscribers || [];
     let isSubbed = subs.includes(uid);
 
@@ -118,7 +147,7 @@ io.on('connection', async (socket) => {
 
   socket.on('toggleLive', async (tz) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     s.isLive = !s.isLive;
     s.liveStartTime = s.isLive ? Date.now() : null;
     
@@ -144,7 +173,7 @@ io.on('connection', async (socket) => {
 
   socket.on('setActiveItem', async (itemId) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     if (s.activeItemId === itemId) return;
     
     if (!s.items.some(item => item.id === itemId)) return;
@@ -164,7 +193,7 @@ io.on('connection', async (socket) => {
 
   socket.on('resetProgramSchedule', async () => {
     if (!isAdmin) return;
-    let pData = await getProgramData(programId);
+    let pData = await getProgramData(programId); if(!pData) return;
     if (pData.state.isLive) return; // double check server side
     
     pData.state.items = [];
@@ -192,7 +221,7 @@ io.on('connection', async (socket) => {
 
   socket.on('reorderItem', async ({ fromIndex, toIndex }) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     
     if (fromIndex >= 0 && fromIndex < s.items.length && toIndex >= 0 && toIndex < s.items.length) {
       const item = s.items.splice(fromIndex, 1)[0];
@@ -212,7 +241,7 @@ io.on('connection', async (socket) => {
 
   socket.on('updateProgramSettings', async (newSettings) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     s.title = newSettings.title;
     s = await updateProgramState(programId, { title: s.title });
     if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
@@ -221,7 +250,7 @@ io.on('connection', async (socket) => {
 
   socket.on('updateItem', async ({ index, updatedData }) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     if (s.items[index]) {
       s.items[index] = {
         ...s.items[index],
@@ -240,7 +269,7 @@ io.on('connection', async (socket) => {
 
   socket.on('deleteItem', async (index) => {
     if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     if (index >= 0 && index < s.items.length) {
       const deletedItem = s.items[index];
       s.items.splice(index, 1);
@@ -265,7 +294,7 @@ io.on('connection', async (socket) => {
     if (!isAdmin) return;
     const crypto = require('crypto');
     const newItem = { id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36), attachments: itemData.attachments || [], ...itemData };
-    let s = (await getProgramData(programId)).state;
+    let pData = await getProgramData(programId); if(!pData) return; if(!pData) return; let s = pData.state;
     s.items.push(newItem);
     s = await updateProgramState(programId, { items: s.items });
     if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);

@@ -57,7 +57,12 @@ function closePdfViewer() {
   
   if (window.Telegram && window.Telegram.WebApp) {
     window.Telegram.WebApp.BackButton.offClick(closePdfViewer);
-    window.Telegram.WebApp.BackButton.hide();
+    
+    // Don't hide if we need it for Home navigation
+    if (window.Telegram?.WebApp?.initDataUnsafe?.start_param || !window.location.search.includes('id=')) {
+      window.Telegram.WebApp.BackButton.hide();
+    }
+
   }
 }
 
