@@ -28,7 +28,8 @@ let linkedChats = [];
 let linkedChatsMeta = {};
 let privateSubscribersCount = 0;
 let timerInterval = null;
-let expandedItems = new Set();
+let explicitlyExpandedItems = new Set();
+let collapsedItems = new Set();
 
 const els = {
   liveBadge: document.getElementById('liveBadge'),
@@ -150,7 +151,8 @@ function render() {
   state.items.forEach((item, index) => {
     const isCurrent = item.id === state.activeItemId;
     const isPast = currentIndex !== -1 && index < currentIndex;
-    const isExpanded = expandedItems.has(item.id);
+    const isDefaultExpanded = (isCurrent || index === currentIndex + 1);
+    const isExpanded = explicitlyExpandedItems.has(item.id) || (isDefaultExpanded && !collapsedItems.has(item.id));
 
     const card = document.createElement('div');
     card.dataset.index = index;
@@ -160,8 +162,15 @@ function render() {
     card.onclick = (e) => {
       if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('a')) return;
       if (e.target.closest('.drag-handle')) return;
-      if (expandedItems.has(item.id)) expandedItems.delete(item.id);
-      else expandedItems.add(item.id);
+      
+      const currentlyExpanded = explicitlyExpandedItems.has(item.id) || (isDefaultExpanded && !collapsedItems.has(item.id));
+      if (currentlyExpanded) {
+        explicitlyExpandedItems.delete(item.id);
+        collapsedItems.add(item.id);
+      } else {
+        collapsedItems.delete(item.id);
+        explicitlyExpandedItems.add(item.id);
+      }
       render();
     };
 
@@ -179,13 +188,15 @@ function render() {
       <div class="detail-row"><span class="detail-label">Хто:</span><span class="detail-val">${item.assignee || '—'}</span></div>
       ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
       ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
+      ${item.content?.chords ? `
+        <div style="margin-top:12px; background:var(--bg-color, #f4f4f5); padding:12px; border-radius:8px; border:1px solid var(--border-subtle, #e5e7eb); font-family:monospace; white-space:pre-wrap; font-size:13px; color:var(--tg-text); overflow-x:auto; line-height:1.5;">
+          ${item.content.chords}
+        </div>
+      ` : ''}
     `;
 
     // Action buttons
     let actionsHTML = '';
-    if (item.content?.chords) {
-      actionsHTML += `<button class="btn-small" onclick="openContent('${item.title}', \`${item.content.chords}\`)">Акорди/Текст</button>`;
-    }
     if (isAdmin) {
       actionsHTML += `<button class="btn-small primary" onclick="openEdit(${index})">Редагувати</button>`;
       if (!isCurrent) {
