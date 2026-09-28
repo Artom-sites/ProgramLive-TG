@@ -347,8 +347,12 @@ if (BOT_TOKEN) {
       if (page < totalPages - 1) navRow.push({ text: "➡️", callback_data: `dash_${page + 1}_${mode}` });
       if (navRow.length > 0) buttons.push(navRow);
 
-      // We moved Create and Delete to the main reply keyboard
-      if (mode !== 'view') {
+      // Contextual action buttons
+      if (mode === 'view') {
+        if (myPrograms.length > 0) {
+          buttons.push([{ text: "⚙️ Видалити програму", callback_data: `dash_${page}_edit` }]);
+        }
+      } else {
         buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
       }
 
@@ -368,8 +372,7 @@ if (BOT_TOKEN) {
   bot.start(async (ctx) => {
     const mainMenu = {
       keyboard: [
-        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }],
-        [{ text: "⚙️ Видалити програму" }]
+        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }]
       ],
       resize_keyboard: true,
       is_persistent: true

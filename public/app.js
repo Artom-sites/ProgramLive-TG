@@ -330,6 +330,7 @@ function render() {
     addBtn.onclick = () => {
       els.editIndex.value = -1;
       els.editItemId.value = '';
+      document.getElementById('uploadFileContainer').style.display = 'none';
       els.editTitle.value = '';
       els.editType.value = 'standard';
       els.editAssignee.value = '';
@@ -450,6 +451,7 @@ window.openEdit = (index) => {
   if (!item) return;
   els.editIndex.value = index;
   els.editItemId.value = item.id;
+  document.getElementById('uploadFileContainer').style.display = 'flex';
   els.editTitle.value = item.title || '';
   els.editType.value = item.type || 'standard';
   els.editAssignee.value = item.assignee || '';
