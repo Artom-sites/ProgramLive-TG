@@ -1,4 +1,5 @@
 require('dotenv').config();
+const BOT_TOKEN = process.env.BOT_TOKEN;
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -17,8 +18,8 @@ function validateWebAppData(initData, token) {
     if (!hash) return null;
     q.delete('hash');
     const keys = Array.from(q.keys()).sort();
-    const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
+    const dataCheckString = keys.map(k => k + '=' + q.get(k)).join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token.trim()).digest();
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
     if (calculatedHash === hash) {
       const userStr = q.get('user');
@@ -193,8 +194,35 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
   const { programId } = req.params;
   const { initData } = req.body;
   
-  const user = validateWebAppData(initData, BOT_TOKEN);
+  
+  let debugValidation = "OK";
+  let user = null;
+  if (!initData) {
+    debugValidation = "No initData provided";
+  } else {
+    try {
+      const q = new URLSearchParams(initData);
+      const hash = q.get('hash');
+      if (!hash) {
+        debugValidation = "No hash in initData";
+      } else {
+        q.delete('hash');
+        const keys = Array.from(q.keys()).sort();
+        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+        if (calculatedHash !== hash) {
+          debugValidation = "Hash mismatch. Expected: " + hash + " Got: " + calculatedHash;
+        } else {
+          user = JSON.parse(q.get('user'));
+        }
+      }
+    } catch(e) {
+      debugValidation = "Exception: " + e.message;
+    }
+  }
   const userId = user ? user.id : null;
+
   if (!userId) return res.status(403).json({ error: "Unauthorized" });
 
   try {
@@ -245,25 +273,33 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
 // Websockets
 io.on('connection', async (socket) => {
   const programId = socket.handshake.query.programId || 'default';
-  const userId = parseInt(socket.handshake.query.userId) || 0;
+  const initData = socket.handshake.query.initData || '';
+  
+  // VALIDATE INIT DATA
+  const user = validateWebAppData(initData, BOT_TOKEN);
+  const userId = user ? user.id : null;
+  socket.data.userId = userId;
+  
   socket.join(programId);
   
   let data = await getProgramData(programId);
   
-  // You are admin if you are in the admins list, or if the program is public/legacy (admins empty)
-  const isAdmin = data.admins.includes(userId) || data.admins.length === 0;
+  // MUST HAVE VALID USER AND BE IN ADMINS TO HAVE WRITE PERMISSIONS
+  const isAdmin = userId !== null && (data.admins.includes(userId) || data.admins.length === 0);
   
-  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now() });
+  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now(), debugValidation });
   
-  socket.on('setActiveItem', async (index) => {
+  socket.on('setActiveItem', async (itemId) => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
-    s.activeItemIndex = index;
+    s.activeItemId = itemId;
     if (s.isLive) s.liveStartTime = Date.now();
-    s = await updateProgramState(programId, { activeItemIndex: s.activeItemIndex, liveStartTime: s.liveStartTime });
+    s = await updateProgramState(programId, { activeItemId: s.activeItemId, liveStartTime: s.liveStartTime });
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
   socket.on('toggleLive', async () => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     s.isLive = !s.isLive;
     s.liveStartTime = s.isLive ? Date.now() : null;
@@ -272,23 +308,20 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('moveItem', async ({ index, direction }) => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     const newIndex = index + direction;
     if (newIndex >= 0 && newIndex < s.items.length) {
       const temp = s.items[index];
       s.items[index] = s.items[newIndex];
       s.items[newIndex] = temp;
-      
-      let newActive = s.activeItemIndex;
-      if (newActive === index) newActive = newIndex;
-      else if (newActive === newIndex) newActive = index;
-      
-      s = await updateProgramState(programId, { items: s.items, activeItemIndex: newActive });
+      s = await updateProgramState(programId, { items: s.items });
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
 
   socket.on('updateProgramSettings', async (newSettings) => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     s.title = newSettings.title;
     s = await updateProgramState(programId, { title: s.title });
@@ -296,6 +329,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('updateItem', async ({ index, updatedData }) => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     if (s.items[index]) {
       s.items[index] = {
@@ -313,27 +347,39 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('deleteItem', async (index) => {
+    if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     if (index >= 0 && index < s.items.length) {
+      const deletedItem = s.items[index];
       s.items.splice(index, 1);
-      let newActive = s.activeItemIndex;
-      if (newActive >= s.items.length) newActive = Math.max(0, s.items.length - 1);
-      s = await updateProgramState(programId, { items: s.items, activeItemIndex: newActive });
+      
+      let newActiveId = s.activeItemId;
+      if (s.activeItemId === deletedItem.id) {
+        if (s.items[index]) {
+          newActiveId = s.items[index].id;
+        } else if (s.items[index - 1]) {
+          newActiveId = s.items[index - 1].id;
+        } else {
+          newActiveId = null;
+        }
+      }
+      s = await updateProgramState(programId, { items: s.items, activeItemId: newActiveId });
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
 
-  socket.on('addItem', async (newItem) => {
+  socket.on('addItem', async (itemData) => {
+    if (!isAdmin) return;
+    const crypto = require('crypto');
+    const newItem = { id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36), attachments: itemData.attachments || [], ...itemData };
     let s = (await getProgramData(programId)).state;
-    newItem.id = Math.random().toString(36).substring(2, 9);
-    if (!s.items) s.items = [];
     s.items.push(newItem);
     s = await updateProgramState(programId, { items: s.items });
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 });
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
+
 if (BOT_TOKEN) {
   const bot = new Telegraf(BOT_TOKEN);
   

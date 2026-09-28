@@ -68,14 +68,18 @@ function getFileIcon(mime) {
 
 // ── Socket ──
 socket.on('init', (data) => {
-  state = data.state;
-  isAdmin = data.isAdmin;
-  serverTimeOffset = Date.now() - data.serverTime;
-  
-  if (isAdmin) els.bottomBar.classList.remove('hidden');
-  else els.bottomBar.classList.add('hidden');
-  
-  render();
+  try {
+    state = data.state;
+    isAdmin = data.isAdmin;
+    serverTimeOffset = Date.now() - data.serverTime;
+    if (data.debugValidation !== 'OK') alert('Validation failed: ' + data.debugValidation);
+    if (isAdmin) els.bottomBar.classList.remove('hidden');
+    else els.bottomBar.classList.add('hidden');
+    render();
+  } catch(e) {
+    els.headerTitle.textContent = "Error: " + e.message;
+    alert("Init Error: " + e.message + "\n" + e.stack);
+  }
 });
 
 socket.on('stateUpdate', (newState) => {
@@ -344,6 +348,13 @@ function render() {
       els.editModal.classList.add('open');
     };
     els.timeline.appendChild(addBtn);
+  } else {
+    const div = document.createElement('div');
+    div.style.padding = '20px';
+    div.style.textAlign = 'center';
+    div.style.color = 'var(--tg-hint)';
+    div.textContent = 'Ви переглядаєте програму. Тільки адміністратори можуть додавати пункти.';
+    els.timeline.appendChild(div);
   }
 
   startTimerLoop();
