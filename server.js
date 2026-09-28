@@ -189,15 +189,24 @@ app.get('/download/telegram/:fileId', async (req, res) => {
 });
 
 // Notify linked groups endpoint
-app.post('/notify/:programId', async (req, res) => {
+app.post('/notify/:programId', express.json(), async (req, res) => {
   const { programId } = req.params;
+  const { initData } = req.body;
+  
+  const user = validateWebAppData(initData, BOT_TOKEN);
+  const userId = user ? user.id : null;
+  if (!userId) return res.status(403).json({ error: "Unauthorized" });
+
   try {
     const doc = await db.collection('programs').doc(programId).get();
     if (!doc.exists) return res.status(404).json({ error: "Програму не знайдено" });
     
     const data = doc.data();
+    if (!data.admins.includes(userId) && data.admins.length > 0) {
+      return res.status(403).json({ error: "Тільки адміністратор може надсилати сповіщення" });
+    }
+
     const linkedChats = data.linkedChats || [];
-    
     if (linkedChats.length === 0) {
       return res.status(400).json({ error: "До цієї програми не прив'язано жодної групи. Спочатку додайте бота в групу і відправте команду /link " + programId });
     }
@@ -211,13 +220,18 @@ app.post('/notify/:programId', async (req, res) => {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[
-              { text: "📱 Відкрити оновлений розклад", web_app: { url: `https://programlive-tg.onrender.com/?id=${programId}` } }
+              { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}` }
             ]]
           }
         });
         successCount++;
-      } catch (err) {
-        console.error(`Failed to notify chat ${chatId}:`, err.message);
+      } catch (e) {
+        console.error("Failed to notify chat", chatId, e.message);
+        if (e.message.includes("bot was kicked") || e.message.includes("chat not found")) {
+          await db.collection('programs').doc(programId).update({
+            linkedChats: require('firebase-admin/firestore').FieldValue.arrayRemove(chatId)
+          });
+        }
       }
     }
 
@@ -422,7 +436,7 @@ if (BOT_TOKEN) {
       }
 
       await docRef.update({
-        linkedChats: require('firebase-admin').firestore.FieldValue.arrayUnion(ctx.chat.id)
+        linkedChats: require('firebase-admin/firestore').FieldValue.arrayUnion(ctx.chat.id)
       });
       
       await ctx.reply(`✅ Групу успішно прив'язано до розкладу <b>${data.state.title || programId}</b>!\nТепер ви зможете надсилати сюди сповіщення прямо з додатка.`, { parse_mode: 'HTML' });
@@ -501,9 +515,10 @@ if (BOT_TOKEN) {
   bot.on('inline_query', async (ctx) => {
     try {
       const userId = ctx.from.id;
+      const query = ctx.inlineQuery.query.trim();
       const snapshot = await db.collection('programs').where('admins', 'array-contains', userId).get();
       
-      const results = snapshot.docs.map(doc => {
+      let results = snapshot.docs.map(doc => {
         const p = { id: doc.id, ...doc.data() };
         const title = p.state?.title || `Програма ${p.id}`;
         return {
@@ -512,16 +527,20 @@ if (BOT_TOKEN) {
           title: title,
           description: 'Надіслати цей розклад у чат',
           input_message_content: {
-            message_text: `🗓 <b>${title}</b>\n\nНатисніть кнопку нижче, щоб відкрити розклад:`,
+            message_text: `🎼 <b>${title}</b>\nСлідкуйте за програмою в реальному часі.\n\n<a href="https://t.me/ProgramLive_bot/app?startapp=${p.id}">Відкрити програму</a>`,
             parse_mode: 'HTML'
           },
           reply_markup: {
             inline_keyboard: [[
-              { text: "📱 Відкрити програму", web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }
+              { text: "📱 Відкрити програму", url: `https://t.me/ProgramLive_bot/app?startapp=${p.id}` }
             ]]
           }
         };
       });
+
+      if (query) {
+        results = results.filter(r => r.id === query || r.title.toLowerCase().includes(query.toLowerCase()));
+      }
 
       await ctx.answerInlineQuery(results, { cache_time: 0 });
     } catch (e) {

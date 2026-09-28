@@ -491,7 +491,7 @@ document.getElementById('btnNotifyGroups').onclick = async () => {
   btn.disabled = true;
 
   try {
-    const res = await fetch(`/notify/${programId}`, { method: 'POST' });
+    const res = await fetch(`/notify/${programId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: tg?.initData }) });
     const data = await res.json();
     
     if (data.ok) {
@@ -513,14 +513,14 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  const url = `https://t.me/ProgramLive_bot/app?startapp=${programId}`;
-  const text = state.title || "Програма Служіння";
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-  
-  if (tg && tg.openTelegramLink) {
-    tg.openTelegramLink(shareUrl);
+  if (tg && tg.switchInlineQuery) {
+    tg.switchInlineQuery(programId); // Opens chat selection with specific program
   } else {
-    window.open(shareUrl, '_blank');
+    const url = `https://t.me/ProgramLive_bot/app?startapp=${programId}`;
+    const text = state.title || "Програма Служіння";
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
+    else window.open(shareUrl, '_blank');
   }
 };
 
