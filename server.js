@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { verifyBotCanMessage, sendLiveStarted, scheduleProgramChangeNotification, triggerProgramChangeNotification } = require('./services/notifications');
+const { sendDocumentWithRetry } = require('./services/telegramUpload');
 
 function validateWebAppData(initData, token) {
   if (!initData) return null;
@@ -135,7 +136,21 @@ async function updateProgramState(programId, stateUpdates) {
 // Upload endpoint
 
 // Upload file directly to Telegram and return file_id
-app.post('/upload/telegram', upload.single('file'), async (req, res) => {
+app.post('/upload/telegram', (req, res, next) => {
+  upload.single('file')(req, res, function (err) {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Файл завеликий. Максимальний розмір — 20 МБ.' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  if (!bot) {
+    return res.status(503).json({ error: 'Telegram bot is not initialized' });
+  }
+
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   
   const customName = req.body.customName || req.file.originalname;
@@ -144,14 +159,22 @@ app.post('/upload/telegram', upload.single('file'), async (req, res) => {
   
   if (!userId) return res.status(400).json({ error: "No userId provided" });
 
+  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB limit
+  if (req.file.size > MAX_FILE_SIZE) {
+    return res.status(413).json({ error: 'Файл завеликий. Максимальний розмір — 20 МБ.' });
+  }
+
   try {
-    const msg = await bot.telegram.sendDocument(userId, {
-      source: req.file.buffer,
-      filename: customName
-    }, {
-      caption: `📁 <b>Файл завантажено в систему!</b>\n\nНазва: ${customName}\n<i>Він тепер прикріплений до вашої програми. Ви можете видалити це повідомлення.</i>`,
-      parse_mode: 'HTML'
-    });
+    const caption = `📁 <b>Файл завантажено в систему!</b>\n\nНазва: ${customName}\n<i>Він тепер прикріплений до вашої програми. Ви можете видалити це повідомлення.</i>`;
+    
+    const msg = await sendDocumentWithRetry(
+      bot, 
+      userId, 
+      req.file.buffer, 
+      customName, 
+      fileType, 
+      caption
+    );
 
     const file_id = msg.document.file_id;
     
@@ -163,8 +186,12 @@ app.post('/upload/telegram', upload.single('file'), async (req, res) => {
       url: `/download/telegram/${file_id}?name=${encodeURIComponent(customName)}`
     });
   } catch (err) {
-    console.error("Telegram Upload error:", err);
-    res.status(500).json({ error: err.message || "Failed to upload to Telegram" });
+    console.error("Upload route error:", err.message);
+    if (err.isUserFriendly) {
+      res.status(err.statusCode || 500).json({ error: err.message });
+    } else {
+      res.status(500).json({ error: "Failed to upload to Telegram" });
+    }
   }
 });
 
