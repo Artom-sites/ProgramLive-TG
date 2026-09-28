@@ -4,7 +4,9 @@
   "description": "ProgramLive Telegram Mini App",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node tests/smoke.js",
+    "test:smoke": "node tests/smoke.js"
   },
   "dependencies": {
     "dotenv": "^18.0.4",
