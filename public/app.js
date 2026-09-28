@@ -523,12 +523,13 @@ els.btnSaveSettings.onclick = () => {
 };
 
 els.btnShare.onclick = () => {
-  // Use Telegram deep link to force chat selection for inline queries
-  const shareUrl = `https://t.me/ProgramLive_bot?inline=${encodeURIComponent(programId)}`;
-  if (tg && tg.openTelegramLink) {
-    tg.openTelegramLink(shareUrl);
+  if (!programId) return;
+
+  if (tg && tg.switchInlineQuery) {
+    tg.switchInlineQuery(String(programId), ['users', 'groups', 'channels']);
   } else {
-    window.open(shareUrl, '_blank');
+    console.error('Telegram WebApp switchInlineQuery is not available');
+    if (tg && tg.showAlert) tg.showAlert('Ця функція не підтримується на вашому пристрої. Оновіть Telegram.');
   }
 };
 
