@@ -243,9 +243,10 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
     const title = data.state?.title || `Програма ${programId}`;
     let successCount = 0;
 
+    const notificationsToSave = {};
     for (const chatId of linkedChats) {
       try {
-        await bot.telegram.sendMessage(chatId, `🔔 <b>Увага!</b>\n\nУ розкладі <b>«${title}»</b> щойно відбулися зміни.\nБудь ласка, відкрийте програму, щоб переглянути актуальну версію!`, {
+        const msg = await bot.telegram.sendMessage(chatId, `🔔 <b>Увага!</b>\n\nУ розкладі <b>«${title}»</b> щойно відбулися зміни.\nБудь ласка, відкрийте програму, щоб переглянути актуальну версію!`, {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [[
@@ -253,6 +254,7 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
             ]]
           }
         });
+        notificationsToSave[chatId] = msg.message_id;
         successCount++;
       } catch (e) {
         console.error("Failed to notify chat", chatId, e.message);
@@ -262,6 +264,12 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
           });
         }
       }
+    }
+    
+    if (Object.keys(notificationsToSave).length > 0) {
+      await db.collection('programs').doc(programId).update({
+        activeNotifications: notificationsToSave
+      });
     }
 
     res.json({ ok: true, sent: successCount, total: linkedChats.length });
@@ -332,6 +340,20 @@ io.on('connection', async (socket) => {
   
   const isAdmin = userId !== null && (data.admins.includes(userId) || data.admins.length === 0);
   console.log(`[Auth Debug] Final isAdmin status: ${isAdmin}\n`);
+  
+  // --- Auto-delete notifications ---
+  if (data.activeNotifications && Object.keys(data.activeNotifications).length > 0) {
+    if (bot) {
+      for (const [chatId, msgId] of Object.entries(data.activeNotifications)) {
+        try {
+          await bot.telegram.deleteMessage(chatId, msgId);
+        } catch (e) {
+          console.error(`Failed to auto-delete notification in ${chatId}:`, e.message);
+        }
+      }
+    }
+    await db.collection('programs').doc(programId).update({ activeNotifications: require('firebase-admin/firestore').FieldValue.delete() });
+  }
   
   socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now() });
   
@@ -428,6 +450,17 @@ io.on('connection', async (socket) => {
 
 if (BOT_TOKEN) {
   bot = new Telegraf(BOT_TOKEN);
+
+// Graceful shutdown to prevent 409 Conflict polling errors on Render
+process.once('SIGINT', () => {
+  if (bot) bot.stop('SIGINT');
+  process.exit(0);
+});
+process.once('SIGTERM', () => {
+  if (bot) bot.stop('SIGTERM');
+  process.exit(0);
+});
+
   
   async function sendDashboard(ctx, page = 0, mode = 'view', isEdit = false) {
     try {
