@@ -692,7 +692,7 @@ els.btnLive.onclick = () => {
     state.activeItemId = state.items[0].id;
   }
   render();
-  socket.emit('toggleLive');
+  socket.emit('toggleLive', Intl.DateTimeFormat().resolvedOptions().timeZone);
 };
 
 

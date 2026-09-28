@@ -26,7 +26,8 @@ async function sendLiveStarted(programId, bot, db) {
   const newActivePrivateNotifications = {};
   const notifyTokensToSave = {};
 
-  const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+  const tz = data.state?.adminTimeZone || 'Europe/Kyiv';
+  const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: tz });
   const text = `🔴 <b>Програма розпочалася!</b>\n\n<b>«${title}»</b> зараз у прямому ефірі.\nПриєднуйтесь, щоб слідкувати за ходом програми!\n\n<i>Оновлено: ${timeStr}</i>`;
 
   // Broadcast to groups
@@ -110,7 +111,8 @@ async function triggerProgramChangeNotification(programId, bot, db) {
   const notifyTokensToSave = {};
 
   // Group Notifications
-  const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+  const tz = data.state?.adminTimeZone || 'Europe/Kyiv';
+  const timeStr = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: tz });
   const text = `🔔 <b>У програмі відбулися зміни</b>\n\n<b>«${title}»</b>\nВідкрийте актуальну версію програми.\n\n<i>Оновлено: ${timeStr}</i>`;
 
   for (const chatId of groups) {

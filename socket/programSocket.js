@@ -116,17 +116,26 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('toggleLive', async () => {
+  socket.on('toggleLive', async (tz) => {
     if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
     s.isLive = !s.isLive;
     s.liveStartTime = s.isLive ? Date.now() : null;
     
+    if (s.isLive) {
+      s.adminTimeZone = tz || 'Europe/Kyiv';
+    }
+    
     if (s.isLive && (!s.activeItemId || !s.items.some(i => i.id === s.activeItemId)) && s.items.length > 0) {
       s.activeItemId = s.items[0].id;
     }
     
-    s = await updateProgramState(programId, { isLive: s.isLive, liveStartTime: s.liveStartTime, activeItemId: s.activeItemId });
+    s = await updateProgramState(programId, { 
+      isLive: s.isLive, 
+      liveStartTime: s.liveStartTime, 
+      activeItemId: s.activeItemId,
+      adminTimeZone: s.adminTimeZone
+    });
     if (s.isLive) {
       sendLiveStarted(programId, bot, db);
     }
