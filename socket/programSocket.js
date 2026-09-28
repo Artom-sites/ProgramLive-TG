@@ -142,6 +142,24 @@ io.on('connection', async (socket) => {
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
+  socket.on('setActiveItem', async (itemId) => {
+    if (!isAdmin) return;
+    let s = (await getProgramData(programId)).state;
+    if (s.activeItemId === itemId) return;
+    
+    s.activeItemId = itemId;
+    if (s.isLive) {
+      s.liveStartTime = Date.now();
+    }
+    
+    s = await updateProgramState(programId, { 
+      activeItemId: s.activeItemId, 
+      liveStartTime: s.liveStartTime 
+    });
+    
+    io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
+  });
+
   socket.on('resetProgramSchedule', async () => {
     if (!isAdmin) return;
     let pData = await getProgramData(programId);

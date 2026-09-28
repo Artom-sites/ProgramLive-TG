@@ -723,7 +723,7 @@ els.btnPrev.onclick = () => {
   if (currentIndex > 0) {
     state.activeItemId = state.items[currentIndex - 1].id;
     render();
-    socket.emit('setActiveItem', state.activeItemId);
+    if (state.isLive) state.liveStartTime = Date.now(); socket.emit('setActiveItem', state.activeItemId);
   }
 };
 els.btnNext.onclick = () => {
@@ -734,7 +734,7 @@ els.btnNext.onclick = () => {
     state.activeItemId = state.items[0].id;
   }
   render();
-  socket.emit('setActiveItem', state.activeItemId);
+  if (state.isLive) state.liveStartTime = Date.now(); socket.emit('setActiveItem', state.activeItemId);
 };
 els.btnLive.onclick = () => {
   state.isLive = !state.isLive;
