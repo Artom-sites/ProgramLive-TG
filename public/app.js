@@ -524,7 +524,7 @@ els.btnSaveSettings.onclick = () => {
 
 els.btnShare.onclick = () => {
   if (tg && tg.switchInlineQuery) {
-    tg.switchInlineQuery(programId); // Opens chat selection with specific program
+    tg.switchInlineQuery(programId, ['users', 'groups', 'channels']); // Forces chat selection dialog
   } else {
     const url = `https://t.me/ProgramLive_bot/app?startapp=${programId}`;
     const text = state.title || "Програма Служіння";
