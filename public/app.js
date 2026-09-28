@@ -640,7 +640,14 @@ els.btnNext.onclick = () => {
   render();
   socket.emit('setActiveItem', state.activeItemId);
 };
-els.btnLive.onclick = () => socket.emit('toggleLive');
+els.btnLive.onclick = () => {
+  state.isLive = !state.isLive;
+  if (state.isLive && (!state.activeItemId || !state.items.some(i => i.id === state.activeItemId)) && state.items.length > 0) {
+    state.activeItemId = state.items[0].id;
+  }
+  render();
+  socket.emit('toggleLive');
+};
 
 
 function updateSubscribeUI() {
