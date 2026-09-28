@@ -37,6 +37,7 @@ const els = {
   btnCloseShare: document.getElementById('btnCloseShare'),
   btnShareGroup: document.getElementById('btnShareGroup'),
   btnSharePerson: document.getElementById('btnSharePerson'),
+  btnResetSchedule: document.getElementById('btnResetSchedule'),
 
   liveBadge: document.getElementById('liveBadge'),
   timeline: document.getElementById('timeline'),
@@ -603,11 +604,36 @@ const openSettingsModal = () => {
     createItem(uid, title, '👤', 'private');
   });
 
+  if (els.btnResetSchedule) {
+    if (state.isLive) {
+      els.btnResetSchedule.style.opacity = '0.5';
+      els.btnResetSchedule.style.pointerEvents = 'none';
+    } else {
+      els.btnResetSchedule.style.opacity = '1';
+      els.btnResetSchedule.style.pointerEvents = 'auto';
+    }
+  }
+
   els.settingsModal.classList.add('open');
 };
 document.getElementById('btnSettingsHeader').onclick = openSettingsModal;
 
 
+
+
+if (els.btnResetSchedule) {
+  els.btnResetSchedule.onclick = () => {
+    if (state.isLive) {
+      if (tg && tg.showAlert) tg.showAlert("Спочатку зупиніть Live-режим (Stop Live), щоб очистити розклад.");
+      else alert("Спочатку зупиніть Live-режим (Stop Live), щоб очистити розклад.");
+      return;
+    }
+    if (confirm("Підготувати нову програму?\n\nПоточний розклад буде повністю очищено.\nУсі отримувачі (групи та люди) залишаться.")) {
+      socket.emit('resetProgramSchedule');
+      els.settingsModal.classList.remove('open');
+    }
+  };
+}
 
 els.btnSaveSettings.onclick = () => {
   socket.emit('updateProgramSettings', { title: els.settingsTitle.value });

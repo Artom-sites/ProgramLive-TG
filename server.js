@@ -430,6 +430,34 @@ io.on('connection', async (socket) => {
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
+  socket.on('resetProgramSchedule', async () => {
+    if (!isAdmin) return;
+    let pData = await getProgramData(programId);
+    if (pData.state.isLive) return; // double check server side
+    
+    pData.state.items = [];
+    pData.state.activeItemId = null;
+    pData.state.isLive = false;
+    pData.state.liveStartTime = null;
+    
+    await updateProgramState(programId, {
+      items: [],
+      activeItemId: null,
+      isLive: false,
+      liveStartTime: null
+    });
+    
+    const { FieldValue } = require('firebase-admin/firestore');
+    await db.collection('programs').doc(programId).update({
+       activeGroupNotifications: FieldValue.delete(),
+       activePrivateNotifications: FieldValue.delete(),
+       notifyTokens: FieldValue.delete()
+    });
+    
+    console.log(`[Reset Debug] Program ${programId} reset for new cycle. Recipients kept.`);
+    io.to(programId).emit('stateUpdate', { ...pData.state, serverTime: Date.now() });
+  });
+
   socket.on('moveItem', async ({ index, direction }) => {
     if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
