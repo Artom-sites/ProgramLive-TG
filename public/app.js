@@ -23,6 +23,7 @@ const socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
 let isAdmin = false;
+let isSubscribed = false;
 let timerInterval = null;
 let expandedItems = new Set();
 
@@ -33,6 +34,8 @@ const els = {
   btnPrev: document.getElementById('btnPrev'),
   btnNext: document.getElementById('btnNext'),
   btnLive: document.getElementById('btnLive'),
+  btnSubscribe: document.getElementById('btnSubscribe'),
+  iconBell: document.getElementById('iconBell'),
   contentModal: document.getElementById('contentModal'),
   modalTitle: document.getElementById('modalTitle'),
   modalBody: document.getElementById('modalBody'),
@@ -82,6 +85,14 @@ socket.on('init', (data) => {
 
     if (isAdmin) els.bottomBar.classList.remove('hidden');
     else els.bottomBar.classList.add('hidden');
+    
+    isSubscribed = !!data.isSubscribed;
+    if (!isAdmin) {
+      if (els.btnSubscribe) els.btnSubscribe.style.display = 'inline-flex';
+      if (els.btnSubscribe) els.btnSubscribe.classList.remove('hidden');
+      updateSubscribeUI();
+    }
+    
     render();
   } catch(e) {
     console.error('Init Error:', e);
@@ -551,3 +562,40 @@ els.btnNext.onclick = () => {
   else if (currentIndex === -1 && state.items.length > 0) socket.emit('setActiveItem', state.items[0].id);
 };
 els.btnLive.onclick = () => socket.emit('toggleLive');
+
+
+function updateSubscribeUI() {
+  if (isSubscribed) {
+    if (els.btnSubscribe) els.btnSubscribe.style.color = 'var(--tg-hint, #999)';
+    if (els.iconBell) els.iconBell.innerHTML = `<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><line x1="2" y1="2" x2="22" y2="22"></line>`;
+  } else {
+    if (els.btnSubscribe) els.btnSubscribe.style.color = 'var(--tg-text, #000)';
+    if (els.iconBell) els.iconBell.innerHTML = `<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>`;
+  }
+}
+
+if (els.btnSubscribe) {
+  els.btnSubscribe.onclick = () => {
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    els.btnSubscribe.style.opacity = '0.5';
+    socket.emit('toggleSubscription', (res) => {
+      els.btnSubscribe.style.opacity = '1';
+      if (res.error) {
+        if (res.error === 'BOT_BLOCKED') {
+          if (tg) tg.showAlert("Щоб отримувати особисті сповіщення, спочатку відкрийте @ProgramLive_bot і натисніть Start.");
+        } else {
+          if (tg) tg.showAlert("Помилка підписки.");
+        }
+        return;
+      }
+      isSubscribed = res.subscribed;
+      updateSubscribeUI();
+      if (tg) {
+        tg.showPopup({ 
+          title: isSubscribed ? "Сповіщення увімкнені" : "Сповіщення вимкнені", 
+          message: isSubscribed ? "Ви будете отримувати повідомлення про зміни." : "Ви більше не будете отримувати сповіщення." 
+        });
+      }
+    });
+  };
+}

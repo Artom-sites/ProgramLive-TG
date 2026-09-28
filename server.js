@@ -10,6 +10,7 @@ const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const { verifyBotCanMessage, sendLiveStarted, scheduleProgramChangeNotification, triggerProgramChangeNotification } = require('./services/notifications');
 
 function validateWebAppData(initData, token) {
   if (!initData) return null;
@@ -195,32 +196,23 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
   const { programId } = req.params;
   const { initData } = req.body;
   
-  
-  let debugValidation = "OK";
   let user = null;
-  if (!initData) {
-    debugValidation = "No initData provided";
-  } else {
+  if (initData) {
     try {
       const q = new URLSearchParams(initData);
       const hash = q.get('hash');
-      if (!hash) {
-        debugValidation = "No hash in initData";
-      } else {
+      if (hash) {
         q.delete('hash');
         const keys = Array.from(q.keys()).sort();
-        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+        const dataCheckString = keys.map(k => k + '=' + q.get(k)).join('\n');
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
         const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-        if (calculatedHash !== hash) {
-          debugValidation = "Hash mismatch. Expected: " + hash + " Got: " + calculatedHash;
-        } else {
-          user = JSON.parse(q.get('user'));
+        if (calculatedHash === hash) {
+          const userStr = q.get('user');
+          if (userStr) user = JSON.parse(userStr);
         }
       }
-    } catch(e) {
-      debugValidation = "Exception: " + e.message;
-    }
+    } catch(e) { }
   }
   const userId = user ? user.id : null;
 
@@ -235,48 +227,14 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
       return res.status(403).json({ error: "Тільки адміністратор може надсилати сповіщення" });
     }
 
-    const linkedChats = data.linkedChats || [];
-    if (linkedChats.length === 0) {
-      return res.status(400).json({ error: "До цієї програми не прив'язано жодної групи. Спочатку додайте бота в групу і відправте команду /link " + programId });
-    }
-
-    const title = data.state?.title || `Програма ${programId}`;
-    let successCount = 0;
-
-    const notifyTokensToSave = {};
-    for (const chatId of linkedChats) {
-      try {
-        const token = crypto.randomBytes(6).toString('hex');
-        const msg = await bot.telegram.sendMessage(chatId, `🔔 <b>Увага!</b>\n\nУ розкладі <b>«${title}»</b> щойно відбулися зміни.\nБудь ласка, відкрийте програму, щоб переглянути актуальну версію!`, {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}_${token}` }
-            ]]
-          }
-        });
-        notifyTokensToSave[`notifyTokens.${token}`] = { chatId, messageId: msg.message_id, createdAt: Date.now() };
-        successCount++;
-      } catch (e) {
-        console.error("Failed to notify chat", chatId, e.message);
-        if (e.message.includes("bot was kicked") || e.message.includes("chat not found")) {
-          await db.collection('programs').doc(programId).update({
-            linkedChats: require('firebase-admin/firestore').FieldValue.arrayRemove(chatId)
-          });
-        }
-      }
-    }
-    
-    if (Object.keys(notifyTokensToSave).length > 0) {
-      await db.collection('programs').doc(programId).update(notifyTokensToSave);
-    }
-
-    res.json({ ok: true, sent: successCount, total: linkedChats.length });
+    await triggerProgramChangeNotification(programId, bot, db);
+    res.json({ ok: true, sent: 1 });
   } catch (err) {
     console.error("Notify error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Websockets
 io.on('connection', async (socket) => {
@@ -345,10 +303,12 @@ io.on('connection', async (socket) => {
   if (notifyToken && data.notifyTokens && data.notifyTokens[notifyToken]) {
     if (bot) {
       const { chatId, messageId } = data.notifyTokens[notifyToken];
-      try {
+      if (chatId == userId) {
+        try {
         await bot.telegram.deleteMessage(chatId, messageId);
       } catch (e) {
         console.error(`Failed to delete notification ${messageId} in ${chatId}:`, e.message);
+        }
       }
     }
     try {
@@ -360,8 +320,28 @@ io.on('connection', async (socket) => {
     }
   }
   
-  socket.emit('init', { state: data.state, isAdmin, serverTime: Date.now() });
+  const isSubscribed = (data.privateSubscribers || []).includes(userId);
+  socket.emit('init', { state: data.state, isAdmin, isSubscribed, serverTime: Date.now() });
   
+  socket.on('toggleSubscription', async (callback) => {
+    const uid = socket.data.userId;
+    if (!uid) return callback({error: "Unauthorized"});
+
+    let pData = await getProgramData(programId);
+    let subs = pData.privateSubscribers || [];
+    let isSubbed = subs.includes(uid);
+
+    if (isSubbed) {
+      await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayRemove(uid) });
+      callback({ subscribed: false });
+    } else {
+      const canMsg = await verifyBotCanMessage(bot, uid);
+      if (!canMsg) return callback({ error: "BOT_BLOCKED" });
+      await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayUnion(uid) });
+      callback({ subscribed: true });
+    }
+  });
+
   socket.on('setActiveItem', async (itemId) => {
     if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
@@ -377,6 +357,9 @@ io.on('connection', async (socket) => {
     s.isLive = !s.isLive;
     s.liveStartTime = s.isLive ? Date.now() : null;
     s = await updateProgramState(programId, { isLive: s.isLive, liveStartTime: s.liveStartTime });
+    if (s.isLive) {
+      sendLiveStarted(programId, bot, db);
+    }
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
@@ -389,6 +372,7 @@ io.on('connection', async (socket) => {
       s.items[index] = s.items[newIndex];
       s.items[newIndex] = temp;
       s = await updateProgramState(programId, { items: s.items });
+      if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
@@ -398,6 +382,7 @@ io.on('connection', async (socket) => {
     let s = (await getProgramData(programId)).state;
     s.title = newSettings.title;
     s = await updateProgramState(programId, { title: s.title });
+    if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
@@ -415,6 +400,7 @@ io.on('connection', async (socket) => {
         content: { ...(s.items[index].content || {}), chords: updatedData.chords }, attachments: updatedData.attachments || s.items[index].attachments || []
       };
       s = await updateProgramState(programId, { items: s.items });
+      if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
@@ -437,6 +423,7 @@ io.on('connection', async (socket) => {
         }
       }
       s = await updateProgramState(programId, { items: s.items, activeItemId: newActiveId });
+      if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
     }
   });
@@ -448,6 +435,7 @@ io.on('connection', async (socket) => {
     let s = (await getProgramData(programId)).state;
     s.items.push(newItem);
     s = await updateProgramState(programId, { items: s.items });
+    if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 });
