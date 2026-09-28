@@ -174,7 +174,7 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
 if (BOT_TOKEN) {
   bot = new Telegraf(BOT_TOKEN);
   const { setupBot } = require('./bot/handlers');
-  setupBot(bot, db, app, express);
+  setupBot(bot, db, app, express, io);
 }
 
 // Websockets

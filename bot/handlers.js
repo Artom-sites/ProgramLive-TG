@@ -1,6 +1,6 @@
 const { DEFAULT_STATE } = require('../programs/programService');
 
-function setupBot(bot, db, app, express) {
+function setupBot(bot, db, app, express, io) {
   bot.catch((err, ctx) => {
     console.error(`[Telegram] Update handling error\nupdateType: ${ctx.updateType}\nerror: ${err.message}`);
   });
