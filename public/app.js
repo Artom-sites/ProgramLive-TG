@@ -189,8 +189,18 @@ function render() {
       ${item.cues?.sound ? `<div class="detail-row"><span class="detail-label">Звук:</span><span class="detail-val">${item.cues.sound}</span></div>` : ''}
       ${item.cues?.media ? `<div class="detail-row"><span class="detail-label">Медіа:</span><span class="detail-val">${item.cues.media}</span></div>` : ''}
       ${item.content?.chords ? `
-        <div style="margin-top:12px; background:var(--bg-color, #f4f4f5); padding:12px; border-radius:8px; border:1px solid var(--border-subtle, #e5e7eb); font-family:monospace; white-space:pre-wrap; font-size:13px; color:var(--tg-text); overflow-x:auto; line-height:1.5;">
-          ${item.content.chords}
+        <div class="chords-container" style="margin-top:12px; background:var(--bg-color, #f4f4f5); padding:12px; border-radius:8px; border:1px solid var(--border-subtle, #e5e7eb); font-family:monospace; white-space:pre-wrap; font-size:13px; color:var(--tg-text); overflow-x:auto; line-height:1.5;">
+          <div class="chords-content" id="chords-${item.id}" style="max-height:150px; overflow-y:hidden; transition: max-height 0.3s ease;">${item.content.chords}</div>
+          <button class="btn-small" style="width:100%; margin-top:8px; background:var(--tg-btn); color:var(--tg-text-btn); display:${item.content.chords.split('\n').length > 7 ? 'block' : 'none'};" onclick="
+            const el = document.getElementById('chords-${item.id}');
+            if(el.style.maxHeight === '150px') {
+              el.style.maxHeight = '2000px';
+              this.innerText = 'Згорнути текст';
+            } else {
+              el.style.maxHeight = '150px';
+              this.innerText = 'Розгорнути текст';
+            }
+          ">Розгорнути текст</button>
         </div>
       ` : ''}
     `;
@@ -566,28 +576,14 @@ const openSettingsModal = () => {
 els.headerTitle.onclick = openSettingsModal;
 document.getElementById('btnSettingsHeader').onclick = openSettingsModal;
 
-document.getElementById('btnNotifyGroups').onclick = async () => {
-  const btn = document.getElementById('btnNotifyGroups');
-  const originalText = btn.innerHTML;
-  btn.innerText = "⏳ Відправка...";
-  btn.disabled = true;
-
-  try {
-    const res = await fetch(`/notify/${programId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: tg?.initData }) });
-    const data = await res.json();
-    
-    if (data.ok) {
-      tg.showAlert(`✅ Успішно надіслано сповіщення у ${data.sent} груп(и)!`);
-    } else {
-      tg.showAlert(`❌ Помилка: ${data.error}`);
+const btnDeep = document.getElementById('btnDeepLinkGroup');
+if (btnDeep) {
+  btnDeep.onclick = () => {
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink('https://t.me/ProgramLive_bot?startgroup=' + programId);
     }
-  } catch (err) {
-    tg.showAlert(`❌ Помилка мережі`);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-};
+  };
+}
 
 els.btnSaveSettings.onclick = () => {
   socket.emit('updateProgramSettings', { title: els.settingsTitle.value });
@@ -598,7 +594,16 @@ els.btnShare.onclick = () => {
   if (!programId) return;
 
   if (tg && tg.switchInlineQuery) {
-    tg.switchInlineQuery(String(programId), ['users', 'groups', 'channels']);
+    try {
+      tg.switchInlineQuery(String(programId), ['users', 'groups', 'channels']);
+    } catch(e) {
+      console.warn('Fallback switchInlineQuery', e);
+      try {
+        tg.switchInlineQuery(String(programId));
+      } catch(e2) {
+        if (tg.showAlert) tg.showAlert('Не вдалося відкрити меню поширення.');
+      }
+    }
   } else {
     console.error('Telegram WebApp switchInlineQuery is not available');
     if (tg && tg.showAlert) tg.showAlert('Ця функція не підтримується на вашому пристрої. Оновіть Telegram.');
@@ -608,12 +613,21 @@ els.btnShare.onclick = () => {
 // ── Live Controls ──
 els.btnPrev.onclick = () => {
   const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
-  if (currentIndex > 0) socket.emit('setActiveItem', state.items[currentIndex - 1].id);
+  if (currentIndex > 0) {
+    state.activeItemId = state.items[currentIndex - 1].id;
+    render();
+    socket.emit('setActiveItem', state.activeItemId);
+  }
 };
 els.btnNext.onclick = () => {
   const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
-  if (currentIndex !== -1 && currentIndex < state.items.length - 1) socket.emit('setActiveItem', state.items[currentIndex + 1].id);
-  else if (currentIndex === -1 && state.items.length > 0) socket.emit('setActiveItem', state.items[0].id);
+  if (currentIndex !== -1 && currentIndex < state.items.length - 1) {
+    state.activeItemId = state.items[currentIndex + 1].id;
+  } else if (currentIndex === -1 && state.items.length > 0) {
+    state.activeItemId = state.items[0].id;
+  }
+  render();
+  socket.emit('setActiveItem', state.activeItemId);
 };
 els.btnLive.onclick = () => socket.emit('toggleLive');
 
