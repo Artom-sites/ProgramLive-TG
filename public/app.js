@@ -658,10 +658,12 @@ els.btnShareGroup.onclick = () => {
 els.btnSharePerson.onclick = () => {
   if (tg && tg.switchInlineQuery) {
     try {
-      tg.switchInlineQuery(String(programId));
+      tg.switchInlineQuery(String(programId), ['users']);
     } catch(e) {
-      if (tg.showAlert) tg.showAlert('Не вдалося відкрити меню.');
+      if (tg.showAlert) tg.showAlert('Ця функція не підтримується у вашій версії Telegram.');
     }
+  } else {
+    if (tg && tg.showAlert) tg.showAlert('Ця функція не підтримується у вашій версії Telegram.');
   }
 };
 
