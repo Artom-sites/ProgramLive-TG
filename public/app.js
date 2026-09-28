@@ -11,10 +11,9 @@ if (tg) {
 
 const urlParams = new URLSearchParams(window.location.search);
 const programId = tg?.initDataUnsafe?.start_param || urlParams.get('id') || 'default';
-const userId = tg?.initDataUnsafe?.user?.id || 0;
-const socket = io({ query: { programId, userId } });
+const socket = io({ query: { programId, initData: tg?.initData || '' } });
 
-let state = { items: [], isLive: false, activeItemIndex: 0, liveStartTime: null };
+let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
 let isAdmin = false;
 let timerInterval = null;
@@ -91,7 +90,7 @@ function startTimerLoop() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (!state.isLive || !state.liveStartTime) return;
-    const activeItem = state.items[state.activeItemIndex];
+    const activeItem = state.items.find(i => i.id === state.activeItemId);
     if (!activeItem) return;
     const elapsed = Math.floor((Date.now() - serverTimeOffset - state.liveStartTime) / 1000);
     const remaining = activeItem.duration - elapsed;
@@ -118,14 +117,15 @@ function render() {
     els.btnLive.classList.remove('active');
     els.btnLive.textContent = "START LIVE";
   }
-  els.btnPrev.disabled = state.activeItemIndex <= 0;
-  els.btnNext.disabled = state.activeItemIndex >= state.items.length - 1;
+  const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
+  els.btnPrev.disabled = currentIndex <= 0;
+  els.btnNext.disabled = currentIndex === -1 || currentIndex >= state.items.length - 1;
 
   els.timeline.innerHTML = '';
 
   state.items.forEach((item, index) => {
-    const isCurrent = index === state.activeItemIndex;
-    const isPast = index < state.activeItemIndex;
+    const isCurrent = item.id === state.activeItemId;
+    const isPast = currentIndex !== -1 && index < currentIndex;
     const isExpanded = expandedItems.has(item.id);
 
     const card = document.createElement('div');
@@ -165,7 +165,7 @@ function render() {
     if (isAdmin) {
       actionsHTML += `<button class="btn-small primary" onclick="openEdit(${index})">Редагувати</button>`;
       if (!isCurrent) {
-        actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', ${index})">Зробити активним</button>`;
+        actionsHTML += `<button class="btn-small" onclick="socket.emit('setActiveItem', '${item.id}')">Зробити активним</button>`;
       }
     }
 
@@ -525,6 +525,13 @@ els.btnShare.onclick = () => {
 };
 
 // ── Live Controls ──
-els.btnPrev.onclick = () => socket.emit('setActiveItem', state.activeItemIndex - 1);
-els.btnNext.onclick = () => socket.emit('setActiveItem', state.activeItemIndex + 1);
+els.btnPrev.onclick = () => {
+  const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
+  if (currentIndex > 0) socket.emit('setActiveItem', state.items[currentIndex - 1].id);
+};
+els.btnNext.onclick = () => {
+  const currentIndex = state.items.findIndex(i => i.id === state.activeItemId);
+  if (currentIndex !== -1 && currentIndex < state.items.length - 1) socket.emit('setActiveItem', state.items[currentIndex + 1].id);
+  else if (currentIndex === -1 && state.items.length > 0) socket.emit('setActiveItem', state.items[0].id);
+};
 els.btnLive.onclick = () => socket.emit('toggleLive');

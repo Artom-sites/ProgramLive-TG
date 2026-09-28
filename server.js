@@ -7,6 +7,27 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
+
+function validateWebAppData(initData, token) {
+  if (!initData) return null;
+  try {
+    const q = new URLSearchParams(initData);
+    const hash = q.get('hash');
+    if (!hash) return null;
+    q.delete('hash');
+    const keys = Array.from(q.keys()).sort();
+    const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    if (calculatedHash === hash) {
+      const userStr = q.get('user');
+      if (userStr) return JSON.parse(userStr);
+    }
+  } catch (e) {}
+  return null;
+}
+
 
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -54,25 +75,51 @@ const DEFAULT_STATE = {
   title: "Нова програма",
   isLive: false,
   liveStartTime: null,
-  activeItemIndex: 0,
+  activeItemId: null,
   items: []
 };
 
 // Database Helpers
 async function getProgramData(programId) {
   const doc = await db.collection('programs').doc(programId).get();
+  let data = null;
   if (doc.exists) {
-    const data = doc.data();
+    data = doc.data();
     if (data.items && !data.state) {
-      return { ownerId: null, admins: [], state: { title: "Програма", ...data } };
+      data = { ownerId: null, admins: [], state: { title: "Програма", ...data } };
     }
     if (!data.state.title) data.state.title = "Програма";
-    return data;
+  } else {
+    data = { ownerId: null, admins: [], state: DEFAULT_STATE };
+    await db.collection('programs').doc(programId).set(data);
   }
-  
-  const newData = { ownerId: null, admins: [], state: DEFAULT_STATE };
-  await db.collection('programs').doc(programId).set(newData);
-  return newData;
+
+  let changed = false;
+  if (data.state && data.state.items) {
+    data.state.items.forEach(item => {
+      if (!item.id) {
+        item.id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2);
+        changed = true;
+      }
+    });
+
+    if (data.state.activeItemIndex !== undefined && data.state.activeItemId === undefined) {
+      const idx = data.state.activeItemIndex;
+      if (data.state.items[idx]) {
+        data.state.activeItemId = data.state.items[idx].id;
+      } else {
+        data.state.activeItemId = null;
+      }
+      delete data.state.activeItemIndex;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await db.collection('programs').doc(programId).set(data);
+  }
+
+  return data;
 }
 
 async function updateProgramState(programId, stateUpdates) {
