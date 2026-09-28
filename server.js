@@ -129,10 +129,13 @@ app.get('/download/telegram/:fileId', async (req, res) => {
     
     const link = await bot.telegram.getFileLink(fileId);
     
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
-    
-    https.get(link.href, (stream) => {
-      stream.pipe(res);
+    https.get(link.href, (telegramRes) => {
+      // Forward the content type from Telegram (e.g. application/pdf)
+      res.setHeader('Content-Type', telegramRes.headers['content-type'] || 'application/octet-stream');
+      // Use 'inline' so the browser opens PDFs instead of downloading them silently
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      
+      telegramRes.pipe(res);
     }).on('error', (err) => {
       console.error("Stream error:", err);
       res.status(500).send('Error downloading file');

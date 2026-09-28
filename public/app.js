@@ -238,7 +238,7 @@ function render() {
     let filesHTML = '';
     if (item.attachments && item.attachments.length > 0) {
       filesHTML = `<div class="card-files">` +
-        item.attachments.map(a => `<a href="${a.url}" target="_blank" class="file-chip">${getFileIcon(a.type)} ${a.name}</a>`).join('') +
+        item.attachments.map(a => `<a href="#" onclick="tg.openLink(window.location.origin + '${a.url}'); return false;" class="file-chip">${getFileIcon(a.type)} ${a.name}</a>`).join('') +
         `</div>`;
     }
 
