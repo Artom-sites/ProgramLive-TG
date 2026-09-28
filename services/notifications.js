@@ -117,43 +117,28 @@ async function triggerProgramChangeNotification(programId, bot, db) {
 
   for (const chatId of groups) {
     let oldMsgId = activeGroupNotifications[chatId];
-    let msgIdToSave = null;
-    let success = false;
     
     if (oldMsgId) {
       try {
-        console.log(`[Notify Debug] editing existing group notification\nprogramId: ${programId}\nchatId: ${chatId}\nmessageId: ${oldMsgId}`);
-        await bot.telegram.editMessageText(chatId, oldMsgId, undefined, text, {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}` } ]] }
-        });
-        console.log(`[Notify Debug] group notification updated successfully\nprogramId: ${programId}\nchatId: ${chatId}\nmessageId: ${oldMsgId}`);
-        msgIdToSave = oldMsgId;
-        success = true;
+        await bot.telegram.deleteMessage(chatId, oldMsgId);
       } catch (e) {
-        console.error(`[Notify Debug] group notification edit failed\nchatId: ${chatId}\nmessageId: ${oldMsgId}\nerror: ${e.description || e.message}`);
+        console.error(`[Notify Debug] Failed to delete old group notification\nchatId: ${chatId}\nerror: ${e.description || e.message}`);
       }
     }
     
-    if (!success) {
-      try {
-        console.log(`[Notify Debug] sending new group notification\nprogramId: ${programId}\nchatId: ${chatId}`);
-        const msg = await bot.telegram.sendMessage(chatId, text, {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}` } ]] }
-        });
-        console.log(`[Notify Debug] group notification sent successfully\nprogramId: ${programId}\nchatId: ${chatId}\nmessageId: ${msg.message_id}`);
-        msgIdToSave = msg.message_id;
-      } catch(e) {
-        console.error(`[Notify Debug] group notification send failed\nprogramId: ${programId}\nchatId: ${chatId}\ntelegramErrorCode: ${e.code || 'unknown'}\ndescription: ${e.description || e.message}`);
-        if (e.message.includes('bot was kicked') || e.message.includes('chat not found')) {
-          await db.collection('programs').doc(programId).update({ linkedChats: FieldValue.arrayRemove(chatId) });
-        }
+    try {
+      console.log(`[Notify Debug] sending new group notification\nprogramId: ${programId}\nchatId: ${chatId}`);
+      const msg = await bot.telegram.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити оновлений розклад", url: `https://t.me/ProgramLive_bot/app?startapp=${programId}` } ]] }
+      });
+      console.log(`[Notify Debug] group notification sent successfully\nprogramId: ${programId}\nchatId: ${chatId}\nmessageId: ${msg.message_id}`);
+      newActiveGroupNotifications[chatId] = msg.message_id;
+    } catch(e) {
+      console.error(`[Notify Debug] group notification send failed\nprogramId: ${programId}\nchatId: ${chatId}\ntelegramErrorCode: ${e.code || 'unknown'}\ndescription: ${e.description || e.message}`);
+      if (e.message.includes('bot was kicked') || e.message.includes('chat not found')) {
+        await db.collection('programs').doc(programId).update({ linkedChats: FieldValue.arrayRemove(chatId) });
       }
-    }
-    
-    if (msgIdToSave) {
-      newActiveGroupNotifications[chatId] = msgIdToSave;
     }
   }
 
