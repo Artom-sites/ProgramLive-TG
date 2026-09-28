@@ -489,7 +489,7 @@ window.handleFileUpload = async (input) => {
       els.uploadProgress.textContent = `✅ ${file.name} додано!`;
       setTimeout(() => els.uploadProgress.classList.add('hidden'), 2000);
       currentEditAttachments.push({ url: data.url, name: data.name, type: data.type, file_id: data.file_id });
-      renderEditAttachmentsLocal();
+      renderEditAttachments();
     } else {
       throw new Error(data.error);
     }
