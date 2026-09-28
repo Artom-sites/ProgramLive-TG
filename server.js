@@ -299,6 +299,7 @@ io.on('connection', async (socket) => {
           if (userStr) {
             const parsedUser = JSON.parse(userStr);
             userId = parsedUser.id;
+            socket.data.firstName = parsedUser.first_name || 'Користувач';
             console.log(`[Auth Debug] Validation SUCCESS. User ID: ${userId}`);
           } else {
             console.log(`[Auth Debug] Validation failed: 'user' parameter is missing.`);
@@ -357,12 +358,14 @@ io.on('connection', async (socket) => {
     isSubscribed,
     linkedChats,
     linkedChatsMeta,
-    privateSubscribersCount,
+    privateSubscribers: data.privateSubscribers || [],
+    privateSubscribersMeta: data.privateSubscribersMeta || {},
     serverTime: Date.now() 
   });
   
   socket.on('toggleSubscription', async (callback) => {
     const uid = socket.data.userId;
+    const firstName = socket.data.firstName || 'Користувач';
     if (!uid) return callback({error: "Unauthorized"});
 
     let pData = await getProgramData(programId);
@@ -371,22 +374,31 @@ io.on('connection', async (socket) => {
 
     console.log(`[Subscription Debug]\nprogramId: ${programId}\nuserId: ${uid}\nbefore: ${isSubbed ? 'subscribed' : 'unsubscribed'}`);
 
+    const { FieldValue } = require('firebase-admin/firestore');
+
     if (isSubbed) {
-      await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayRemove(uid) });
+      await db.collection('programs').doc(programId).update({ 
+        privateSubscribers: FieldValue.arrayRemove(uid),
+        [`privateSubscribersMeta.${uid}`]: FieldValue.delete()
+      });
       console.log(`[Subscription Debug] after: unsubscribed`);
       
       const afterDocUnsub = await db.collection('programs').doc(programId).get();
       io.to(programId).emit('recipientsUpdate', {
          linkedChats: afterDocUnsub.data().linkedChats || [],
          linkedChatsMeta: afterDocUnsub.data().linkedChatsMeta || {},
-         privateSubscribersCount: (afterDocUnsub.data().privateSubscribers || []).length
+         privateSubscribers: afterDocUnsub.data().privateSubscribers || [],
+         privateSubscribersMeta: afterDocUnsub.data().privateSubscribersMeta || {}
       });
       callback({ subscribed: false });
 
     } else {
       const canMsg = await verifyBotCanMessage(bot, uid);
       if (!canMsg) return callback({ error: "BOT_BLOCKED" });
-      await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayUnion(uid) });
+      await db.collection('programs').doc(programId).update({ 
+        privateSubscribers: FieldValue.arrayUnion(uid),
+        [`privateSubscribersMeta.${uid}`]: firstName
+      });
       
       const afterDoc = await db.collection('programs').doc(programId).get();
       console.log(`[Subscription Debug] after: subscribed (total count: ${(afterDoc.data().privateSubscribers || []).length})`);
@@ -394,32 +406,11 @@ io.on('connection', async (socket) => {
       io.to(programId).emit('recipientsUpdate', {
          linkedChats: afterDoc.data().linkedChats || [],
          linkedChatsMeta: afterDoc.data().linkedChatsMeta || {},
-         privateSubscribersCount: (afterDoc.data().privateSubscribers || []).length
+         privateSubscribers: afterDoc.data().privateSubscribers || [],
+         privateSubscribersMeta: afterDoc.data().privateSubscribersMeta || {}
       });
       callback({ subscribed: true });
-
     }
-  });
-
-
-  socket.on('unlinkGroup', async (chatId) => {
-    if (!isAdmin) return;
-    try {
-      await db.collection('programs').doc(programId).update({
-        linkedChats: require('firebase-admin/firestore').FieldValue.arrayRemove(chatId),
-        [`linkedChatsMeta.${chatId}`]: require('firebase-admin/firestore').FieldValue.delete()
-      });
-      // push update so admin UI refreshes if needed, or they just refresh manually
-    } catch(e) {}
-  });
-
-  socket.on('setActiveItem', async (itemId) => {
-    if (!isAdmin) return;
-    let s = (await getProgramData(programId)).state;
-    s.activeItemId = itemId;
-    if (s.isLive) s.liveStartTime = Date.now();
-    s = await updateProgramState(programId, { activeItemId: s.activeItemId, liveStartTime: s.liveStartTime });
-    io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
   });
 
   socket.on('toggleLive', async () => {
@@ -671,10 +662,15 @@ process.once('SIGTERM', () => {
         io.to(payload).emit('recipientsUpdate', { 
            linkedChats: afterData.linkedChats || [],
            linkedChatsMeta: afterData.linkedChatsMeta || {},
-           privateSubscribersCount: (afterData.privateSubscribers || []).length
+           privateSubscribers: afterData.privateSubscribers || [],
+           privateSubscribersMeta: afterData.privateSubscribersMeta || {}
         });
         
-        return ctx.reply(`✅ Групу успішно прив'язано до розкладу <b>${data.state?.title || payload}</b>!\nТепер сюди автоматично надходитимуть сповіщення під час Live-режиму.`, { parse_mode: 'HTML' });
+        const cardText = `🎼 <b>Програма «${data.state?.title || payload}»</b>\n\nСлідкуйте за програмою в реальному часі.`;
+        return ctx.reply(cardText, { 
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[ { text: "📱 Відкрити програму", url: `https://t.me/ProgramLive_bot/app?startapp=${payload}` } ]] }
+        });
       } catch (e) {
         console.error("[Group Link Debug] Link error via startgroup:", e);
         return ctx.reply("❌ Помилка прив'язки.");

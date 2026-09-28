@@ -26,12 +26,18 @@ let isAdmin = false;
 let isSubscribed = false;
 let linkedChats = [];
 let linkedChatsMeta = {};
-let privateSubscribersCount = 0;
+let privateSubscribers = [];
+let privateSubscribersMeta = {};
 let timerInterval = null;
 let explicitlyExpandedItems = new Set();
 let collapsedItems = new Set();
 
 const els = {
+  shareModal: document.getElementById('shareModal'),
+  btnCloseShare: document.getElementById('btnCloseShare'),
+  btnShareGroup: document.getElementById('btnShareGroup'),
+  btnSharePerson: document.getElementById('btnSharePerson'),
+
   liveBadge: document.getElementById('liveBadge'),
   timeline: document.getElementById('timeline'),
   bottomBar: document.getElementById('bottomBar'),
@@ -85,9 +91,10 @@ function getFileIcon(mime) {
 socket.on('recipientsUpdate', (data) => {
   linkedChats = data.linkedChats || [];
   linkedChatsMeta = data.linkedChatsMeta || {};
-  privateSubscribersCount = data.privateSubscribersCount || 0;
+  privateSubscribers = data.privateSubscribers || [];
+  privateSubscribersMeta = data.privateSubscribersMeta || {};
   if (els.settingsModal && els.settingsModal.classList.contains('open')) {
-    openSettingsModal(); // Refresh UI dynamically
+    openSettingsModal();
   }
 });
 socket.on('init', (data) => {
@@ -97,7 +104,8 @@ socket.on('init', (data) => {
     serverTimeOffset = Date.now() - data.serverTime;
     linkedChats = data.linkedChats || [];
     linkedChatsMeta = data.linkedChatsMeta || {};
-    privateSubscribersCount = data.privateSubscribersCount || 0;
+    privateSubscribers = data.privateSubscribers || [];
+    privateSubscribersMeta = data.privateSubscribersMeta || {};
 
     if (isAdmin) { els.bottomBar.classList.remove('hidden'); console.log('[Recipients Debug] linkedChats: ', linkedChats, 'privateSubscribersCount: ', privateSubscribersCount); }
     else els.bottomBar.classList.add('hidden');
@@ -540,61 +548,66 @@ els.btnSaveEdit.onclick = () => {
 const openSettingsModal = () => {
   if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";
-  document.getElementById('linkedChatsCount').innerText = linkedChats.length;
-  document.getElementById('privateSubscribersCount').innerText = privateSubscribersCount;
   
-  const listEl = document.getElementById('linkedChatsList');
+  const totalCount = linkedChats.length + privateSubscribers.length;
+  document.getElementById('recipientsTotalCount').innerText = totalCount;
+  
+  const listEl = document.getElementById('recipientsList');
   listEl.innerHTML = '';
-  linkedChats.forEach(chatId => {
-    const title = linkedChatsMeta[chatId] || ('Група ' + chatId);
+  
+  const createItem = (id, name, icon, type) => {
     const item = document.createElement('div');
     item.style.display = 'flex';
     item.style.justifyContent = 'space-between';
     item.style.alignItems = 'center';
-    item.style.background = 'var(--bg-color)';
+    item.style.background = 'var(--bg-card)';
     item.style.padding = '8px 12px';
     item.style.borderRadius = '6px';
     item.style.fontSize = '13px';
     item.style.color = 'var(--tg-text)';
     
     const titleSpan = document.createElement('span');
-    titleSpan.innerText = title;
+    titleSpan.innerHTML = `${icon} ${name}`;
     titleSpan.style.overflow = 'hidden';
     titleSpan.style.textOverflow = 'ellipsis';
     titleSpan.style.whiteSpace = 'nowrap';
-    titleSpan.style.maxWidth = '60%';
+    titleSpan.style.maxWidth = '70%';
     
     const unlinkBtn = document.createElement('button');
-    unlinkBtn.innerText = 'Від\'єднати';
+    unlinkBtn.innerText = '×';
     unlinkBtn.className = 'btn-secondary';
-    unlinkBtn.style.padding = '4px 8px';
-    unlinkBtn.style.fontSize = '12px';
+    unlinkBtn.style.padding = '4px 10px';
+    unlinkBtn.style.fontSize = '14px';
+    unlinkBtn.style.color = 'var(--c-danger)';
     unlinkBtn.onclick = () => {
-      if (confirm('Від\'єднати цю групу?')) {
-        socket.emit('unlinkGroup', chatId);
-        linkedChats = linkedChats.filter(id => id !== chatId);
-        openSettingsModal(); // refresh
+      if (confirm('Видалити отримувача?')) {
+        socket.emit(type === 'group' ? 'unlinkGroup' : 'unlinkPrivate', id);
+        if (type === 'group') linkedChats = linkedChats.filter(x => x !== id);
+        else privateSubscribers = privateSubscribers.filter(x => x !== id);
+        openSettingsModal();
       }
     };
     
     item.appendChild(titleSpan);
     item.appendChild(unlinkBtn);
     listEl.appendChild(item);
+  };
+
+  linkedChats.forEach(chatId => {
+    const title = linkedChatsMeta[chatId] || 'Група';
+    createItem(chatId, title, '👥', 'group');
   });
+  
+  privateSubscribers.forEach(uid => {
+    const title = privateSubscribersMeta[uid] || 'Користувач';
+    createItem(uid, title, '👤', 'private');
+  });
+
   els.settingsModal.classList.add('open');
 };
-
-els.headerTitle.onclick = openSettingsModal;
 document.getElementById('btnSettingsHeader').onclick = openSettingsModal;
 
-const btnDeep = document.getElementById('btnDeepLinkGroup');
-if (btnDeep) {
-  btnDeep.onclick = () => {
-    if (tg && tg.openTelegramLink) {
-      tg.openTelegramLink('https://t.me/ProgramLive_bot?startgroup=' + programId);
-    }
-  };
-}
+
 
 els.btnSaveSettings.onclick = () => {
   socket.emit('updateProgramSettings', { title: els.settingsTitle.value });
@@ -603,21 +616,26 @@ els.btnSaveSettings.onclick = () => {
 
 els.btnShare.onclick = () => {
   if (!programId) return;
+  els.shareModal.classList.add('open');
+};
 
+els.btnCloseShare.onclick = () => {
+  els.shareModal.classList.remove('open');
+};
+
+els.btnShareGroup.onclick = () => {
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink('https://t.me/ProgramLive_bot?startgroup=' + programId);
+  }
+};
+
+els.btnSharePerson.onclick = () => {
   if (tg && tg.switchInlineQuery) {
     try {
-      tg.switchInlineQuery(String(programId), ['users', 'groups', 'channels']);
+      tg.switchInlineQuery(String(programId));
     } catch(e) {
-      console.warn('Fallback switchInlineQuery', e);
-      try {
-        tg.switchInlineQuery(String(programId));
-      } catch(e2) {
-        if (tg.showAlert) tg.showAlert('Не вдалося відкрити меню поширення.');
-      }
+      if (tg.showAlert) tg.showAlert('Не вдалося відкрити меню.');
     }
-  } else {
-    console.error('Telegram WebApp switchInlineQuery is not available');
-    if (tg && tg.showAlert) tg.showAlert('Ця функція не підтримується на вашому пристрої. Оновіть Telegram.');
   }
 };
 
@@ -668,7 +686,17 @@ if (els.btnSubscribe) {
       els.btnSubscribe.style.opacity = '1';
       if (res.error) {
         if (res.error === 'BOT_BLOCKED') {
-          if (tg) tg.showAlert("Щоб отримувати особисті сповіщення, спочатку відкрийте @ProgramLive_bot і натисніть Start.");
+          if (tg && tg.showPopup) {
+            tg.showPopup({
+              title: 'Увімкнути сповіщення',
+              message: 'Щоб отримувати сповіщення, перейдіть у бот і натисніть Start.',
+              buttons: [{ type: 'ok', id: 'open_bot', text: 'Перейти в бот' }, { type: 'cancel' }]
+            }, (btnId) => {
+              if (btnId === 'open_bot') tg.openTelegramLink('https://t.me/ProgramLive_bot?start=subscribe_' + programId);
+            });
+          } else if (tg) {
+             tg.openTelegramLink('https://t.me/ProgramLive_bot?start=subscribe_' + programId);
+          }
         } else {
           if (tg) tg.showAlert("Помилка підписки.");
         }
