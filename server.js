@@ -347,13 +347,8 @@ if (BOT_TOKEN) {
       if (page < totalPages - 1) navRow.push({ text: "➡️", callback_data: `dash_${page + 1}_${mode}` });
       if (navRow.length > 0) buttons.push(navRow);
 
-      // Controls row
-      if (mode === 'view') {
-        buttons.push([
-          { text: "➕ Створити", callback_data: `create_${page}` },
-          { text: "⚙️ Видалити", callback_data: `dash_${page}_edit` }
-        ]);
-      } else {
+      // We moved Create and Delete to the main reply keyboard
+      if (mode !== 'view') {
         buttons.push([{ text: "🔙 Готово", callback_data: `dash_${page}_view` }]);
       }
 
@@ -373,7 +368,8 @@ if (BOT_TOKEN) {
   bot.start(async (ctx) => {
     const mainMenu = {
       keyboard: [
-        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }]
+        [{ text: "📂 Мої програми" }, { text: "➕ Створити програму" }],
+        [{ text: "⚙️ Видалити програму" }]
       ],
       resize_keyboard: true,
       is_persistent: true
@@ -457,6 +453,10 @@ if (BOT_TOKEN) {
   bot.hears("📂 Мої програми", async (ctx) => {
     await sendDashboard(ctx, 0, 'view', false);
   });
+  
+  bot.hears("⚙️ Видалити програму", async (ctx) => {
+    await sendDashboard(ctx, 0, 'edit', false);
+  });
 
   bot.hears("➕ Створити програму", async (ctx) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -514,14 +514,12 @@ if (BOT_TOKEN) {
     await sendDashboard(ctx, 0, 'view', false);
   });
 
-  // Use webhooks instead of long-polling to prevent double-process ghosting on Render
-  const WEBHOOK_URL = 'https://programlive-tg.onrender.com/bot_webhook';
-  app.use(bot.webhookCallback('/bot_webhook'));
-  bot.telegram.setWebhook(WEBHOOK_URL).then(() => {
-    console.log("Webhook set to", WEBHOOK_URL);
-  });
-  
-  // Removed bot.launch() to prevent polling conflicts
+  // Delete webhook and use long-polling. Free Render instances sleep, causing webhooks to timeout and fail.
+  // We use drop_pending_updates to minimize the "double process" overlap on restarts.
+  bot.telegram.deleteWebhook().then(() => {
+    console.log("Webhook deleted, starting long-polling...");
+    bot.launch({ drop_pending_updates: true });
+  }).catch(console.error);
 }
 
 // Background cleanup task (runs daily)
