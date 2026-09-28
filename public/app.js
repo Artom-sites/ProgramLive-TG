@@ -487,7 +487,31 @@ els.btnSaveEdit.onclick = () => {
 els.headerTitle.onclick = () => {
   if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";
+  document.getElementById('linkCommandText').innerText = `/link ${programId}`;
   els.settingsModal.classList.add('open');
+};
+
+document.getElementById('btnNotifyGroups').onclick = async () => {
+  const btn = document.getElementById('btnNotifyGroups');
+  const originalText = btn.innerHTML;
+  btn.innerText = "⏳ Відправка...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/notify/${programId}`, { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.ok) {
+      tg.showAlert(`✅ Успішно надіслано сповіщення у ${data.sent} груп(и)!`);
+    } else {
+      tg.showAlert(`❌ Помилка: ${data.error}`);
+    }
+  } catch (err) {
+    tg.showAlert(`❌ Помилка мережі`);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
 };
 
 els.btnSaveSettings.onclick = () => {

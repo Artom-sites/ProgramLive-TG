@@ -46,7 +46,20 @@
         <label>Назва програми</label>
         <input type="text" id="settingsTitle" placeholder="Недільне зібрання">
       </div>
-      <button class="btn-primary" id="btnSaveSettings" style="width:100%; padding:14px; margin-top: 16px;">Зберегти</button>
+      
+      <div style="margin-top:24px; padding-top:24px; border-top:1px solid var(--border-subtle);">
+        <h4 style="margin:0 0 12px 0; color:var(--tg-text);">🔔 Сповіщення для груп</h4>
+        <div style="font-size:13px; color:var(--tg-hint); margin-bottom:12px; line-height:1.4;">
+          Щоб сповіщати команду про зміни, додайте бота в групу і напишіть там команду: <br>
+          <code id="linkCommandText" style="display:inline-block; margin-top:8px; background:var(--bg-color); padding:6px 10px; border-radius:6px; user-select:all; border:1px solid var(--border-subtle);">/link </code>
+        </div>
+        <button id="btnNotifyGroups" class="btn-primary" style="width:100%; background:var(--tg-btn); display:flex; justify-content:center; align-items:center; gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          Сповістити прив'язані групи
+        </button>
+      </div>
+
+      <button class="btn-primary" id="btnSaveSettings" style="width:100%; padding:14px; margin-top: 24px;">Зберегти налаштування</button>
     </div>
   </div>
 
@@ -138,6 +151,6 @@
   </div>
 
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

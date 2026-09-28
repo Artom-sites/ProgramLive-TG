@@ -171,6 +171,46 @@ app.delete('/upload/:programId/:itemId/:filename', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Notify linked groups endpoint
+app.post('/notify/:programId', async (req, res) => {
+  const { programId } = req.params;
+  try {
+    const doc = await db.collection('programs').doc(programId).get();
+    if (!doc.exists) return res.status(404).json({ error: "Програму не знайдено" });
+    
+    const data = doc.data();
+    const linkedChats = data.linkedChats || [];
+    
+    if (linkedChats.length === 0) {
+      return res.status(400).json({ error: "До цієї програми не прив'язано жодної групи. Спочатку додайте бота в групу і відправте команду /link " + programId });
+    }
+
+    const title = data.state?.title || `Програма ${programId}`;
+    let successCount = 0;
+
+    for (const chatId of linkedChats) {
+      try {
+        await bot.telegram.sendMessage(chatId, `🔔 <b>Увага!</b>\n\nУ розкладі <b>«${title}»</b> щойно відбулися зміни.\nБудь ласка, відкрийте програму, щоб переглянути актуальну версію!`, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "📱 Відкрити оновлений розклад", web_app: { url: `https://programlive-tg.onrender.com/?id=${programId}` } }
+            ]]
+          }
+        });
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to notify chat ${chatId}:`, err.message);
+      }
+    }
+
+    res.json({ ok: true, sent: successCount, total: linkedChats.length });
+  } catch (err) {
+    console.error("Notify error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Websockets
 io.on('connection', async (socket) => {
   const programId = socket.handshake.query.programId || 'default';
@@ -339,6 +379,41 @@ if (BOT_TOKEN) {
       is_persistent: true
     };
     await ctx.reply("👋 Вітаємо! Скористайтеся меню нижче:", { reply_markup: mainMenu }).catch(console.error);
+  });
+
+  bot.command('link', async (ctx) => {
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+      return ctx.reply("⚠️ Будь ласка, вкажіть ID програми. Формат: /link ID_ПРОГРАМИ");
+    }
+    const programId = args[1].trim();
+    
+    if (ctx.chat.type === 'private') {
+      return ctx.reply("⚠️ Цю команду потрібно використовувати безпосередньо в групі, яку ви хочете прив'язати.");
+    }
+
+    try {
+      const docRef = db.collection('programs').doc(programId);
+      const doc = await docRef.get();
+      
+      if (!doc.exists) {
+        return ctx.reply("❌ Програму з таким ID не знайдено.");
+      }
+      
+      const data = doc.data();
+      if (!data.admins.includes(ctx.from.id)) {
+        return ctx.reply("❌ Тільки адміністратор програми може прив'язувати її до груп.");
+      }
+
+      await docRef.update({
+        linkedChats: require('firebase-admin').firestore.FieldValue.arrayUnion(ctx.chat.id)
+      });
+      
+      await ctx.reply(`✅ Групу успішно прив'язано до розкладу <b>${data.state.title || programId}</b>!\nТепер ви зможете надсилати сюди сповіщення прямо з додатка.`, { parse_mode: 'HTML' });
+    } catch (e) {
+      console.error("Link error:", e);
+      await ctx.reply("❌ Сталася помилка при прив'язці.");
+    }
   });
 
   bot.action(/^dash_(\d+)_(\w+)$/, async (ctx) => {
