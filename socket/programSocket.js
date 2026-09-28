@@ -147,6 +147,8 @@ io.on('connection', async (socket) => {
     let s = (await getProgramData(programId)).state;
     if (s.activeItemId === itemId) return;
     
+    if (!s.items.some(item => item.id === itemId)) return;
+    
     s.activeItemId = itemId;
     if (s.isLive) {
       s.liveStartTime = Date.now();
@@ -268,6 +270,23 @@ io.on('connection', async (socket) => {
     s = await updateProgramState(programId, { items: s.items });
     if (s.isLive) scheduleProgramChangeNotification(programId, bot, db);
     io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
+  });
+  socket.on('unlinkGroup', async (chatId) => {
+    if (!isAdmin) return;
+    const { FieldValue } = require('firebase-admin/firestore');
+    await db.collection('programs').doc(programId).update({
+      linkedChats: FieldValue.arrayRemove(chatId),
+      [`linkedChatsMeta.${chatId}`]: FieldValue.delete()
+    });
+  });
+
+  socket.on('unlinkPrivate', async (uid) => {
+    if (!isAdmin) return;
+    const { FieldValue } = require('firebase-admin/firestore');
+    await db.collection('programs').doc(programId).update({
+      privateSubscribers: FieldValue.arrayRemove(uid),
+      [`privateSubscribersMeta.${uid}`]: FieldValue.delete()
+    });
   });
 });
 

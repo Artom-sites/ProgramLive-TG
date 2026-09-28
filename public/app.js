@@ -18,6 +18,17 @@ if (startParam.includes('_')) {
   programId = parts[0];
   notifyToken = parts[1];
 }
+
+window.openAttachment = function(url, name, type) {
+  if (name.toLowerCase().endsWith('.pdf') || type === 'application/pdf') {
+    if (typeof openPdfViewer === 'function') {
+      openPdfViewer(url, name);
+      return;
+    }
+  }
+  tg.openLink(window.location.origin + url);
+};
+
 const socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken } });
 
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
@@ -261,7 +272,7 @@ function render() {
     let filesHTML = '';
     if (item.attachments && item.attachments.length > 0) {
       filesHTML = `<div class="card-files">` +
-        item.attachments.map(a => `<a href="#" onclick="tg.openLink(window.location.origin + '${a.url}'); return false;" class="file-chip">${getFileIcon(a.type)} ${a.name}</a>`).join('') +
+        item.attachments.map(a => `<a href="#" onclick="openAttachment('${a.url}', '${a.name}', '${a.type}'); return false;" class="file-chip">${getFileIcon(a.type)} ${a.name}</a>`).join('') +
         `</div>`;
     }
 

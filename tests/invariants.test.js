@@ -59,4 +59,32 @@ describe('Codebase Invariants (Static Analysis)', () => {
       'Prev button must update activeItemId'
     );
   });
+  
+  it('Frontend PDF Viewer integration invariants', () => {
+    // PDF should use openAttachment, not tg.openLink directly in HTML
+    assert.ok(
+      appJs.includes("openAttachment('${a.url}'"),
+      'Attachment click must route through openAttachment'
+    );
+    
+    // openAttachment must differentiate PDF vs non-PDF
+    assert.ok(
+      appJs.includes("openPdfViewer(url, name)"),
+      'openAttachment must call openPdfViewer for PDFs'
+    );
+    assert.ok(
+      appJs.includes("tg.openLink(window.location.origin + url)"),
+      'openAttachment must fallback to tg.openLink for non-PDFs'
+    );
+    
+    const indexHtml = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+    assert.ok(
+      indexHtml.includes('pdf-viewer.js'),
+      'index.html must include pdf-viewer.js'
+    );
+    assert.ok(
+      indexHtml.includes('pdf.min.js'),
+      'index.html must include pdf.min.js locally'
+    );
+  });
 });

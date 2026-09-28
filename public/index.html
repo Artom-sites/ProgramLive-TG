@@ -182,7 +182,30 @@
     </div>
   </div>
 
+  <div id="pdf-viewer" class="pdf-viewer" style="display: none;">
+    <div class="pdf-viewer-header">
+      <button id="pdf-close-btn" class="btn-icon" aria-label="Закрити">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div id="pdf-title" class="pdf-title">Файл.pdf</div>
+      <div class="pdf-controls">
+        <button id="pdf-zoom-out" class="btn-icon" style="padding: 4px;">−</button>
+        <button id="pdf-zoom-in" class="btn-icon" style="padding: 4px;">+</button>
+      </div>
+    </div>
+    <div id="pdf-container" class="pdf-container">
+      <div id="pdf-loading" class="pdf-loading">⏳ Завантаження PDF...</div>
+      <div id="pdf-error" class="pdf-error" style="display: none;">
+        Не вдалося відкрити PDF.<br><br>
+        <button id="pdf-retry-btn" class="btn-primary" style="margin-bottom: 8px;">Спробувати ще раз</button>
+        <button id="pdf-external-btn" class="btn-secondary">Відкрити зовні</button>
+      </div>
+      <div id="pdf-pages" class="pdf-pages"></div>
+    </div>
+  </div>
 
-  <script src="app.js?v=34"></script>
+  <script src="/lib/pdf.min.js"></script>
+  <script src="pdf-viewer.js?v=1"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
