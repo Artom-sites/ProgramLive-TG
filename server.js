@@ -137,8 +137,12 @@ app.get('/download/telegram/:fileId', async (req, res) => {
     const link = await bot.telegram.getFileLink(fileId);
     
     https.get(link.href, (telegramRes) => {
-      // Forward the content type from Telegram (e.g. application/pdf)
-      res.setHeader('Content-Type', telegramRes.headers['content-type'] || 'application/octet-stream');
+      let contentType = telegramRes.headers['content-type'] || 'application/octet-stream';
+      if (originalName.toLowerCase().endsWith('.pdf')) {
+        contentType = 'application/pdf';
+      }
+      
+      res.setHeader('Content-Type', contentType);
       // Use 'inline' so the browser opens PDFs instead of downloading them silently
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
       
