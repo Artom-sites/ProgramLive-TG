@@ -853,6 +853,7 @@ function renderHomeProgramList(programs, listEl) {
 function initHomeView() {
   document.querySelector('.app-header').style.display = 'none';
   document.getElementById('timeline').style.display = 'none';
+  const bb = document.getElementById('bottomBar'); if(bb) bb.classList.add('hidden');
   
   
   
@@ -869,7 +870,7 @@ function initHomeView() {
     <div style="padding: 20px; font-family: sans-serif; color: var(--tg-text);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2 style="margin-top: 0; margin-bottom: 0;">Мої програми</h2>
-        <span style="font-size: 20px; cursor: pointer;" onclick="alert('Налаштування в розробці')">⚙️</span>
+        
       </div>
       <div id="home-programs-list"></div>
       <button class="btn-primary" style="width: 100%; margin-top: 20px; padding: 14px;" onclick="createProgramFromHome()">➕ Створити програму</button>
@@ -907,15 +908,43 @@ function initHomeView() {
 }
 
 window.createProgramFromHome = function() {
-  const title = prompt("Введіть назву для нової програми:", "Нова програма");
-  if (!title) return;
-  socket.emit('createNewProgram', title, (res) => {
-    if (res && res.success && res.programId) {
-      window.openProgram(res.programId);
-    } else {
-      alert("Помилка створення програми");
-    }
-  });
+  // Telegram Mini Apps block native prompt(), so we use a custom modal
+  let modal = document.getElementById('create-prog-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'create-prog-modal';
+    modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10000;';
+    modal.innerHTML = `
+      <div style="background: var(--tg-theme-bg-color, #fff); padding: 20px; border-radius: 12px; width: 80%; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <h3 style="margin-top:0; color: var(--tg-text);">Нова програма</h3>
+        <input type="text" id="create-prog-input" placeholder="Назва програми..." style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--tg-hint); border-radius: 8px; font-size: 16px; box-sizing: border-box; background: var(--tg-theme-secondary-bg-color, #f5f5f5); color: var(--tg-text);">
+        <div style="display: flex; justify-content: space-between;">
+          <button id="create-prog-cancel" class="btn-small" style="background: transparent; color: var(--tg-text); border: 1px solid var(--tg-hint);">Скасувати</button>
+          <button id="create-prog-confirm" class="btn-small primary">Створити</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    document.getElementById('create-prog-cancel').onclick = () => { modal.style.display = 'none'; };
+    document.getElementById('create-prog-confirm').onclick = () => {
+      const title = document.getElementById('create-prog-input').value.trim() || 'Нова програма';
+      modal.style.display = 'none';
+      
+      socket.emit('createNewProgram', title, (res) => {
+        if (res && res.success && res.programId) {
+          window.openProgram(res.programId);
+        } else {
+          if (tg?.showAlert) tg.showAlert("Помилка створення програми");
+          else alert("Помилка створення програми");
+        }
+      });
+    };
+  }
+  
+  document.getElementById('create-prog-input').value = '';
+  modal.style.display = 'flex';
+  document.getElementById('create-prog-input').focus();
 };
 
 window.openProgram = function(id) {
@@ -947,6 +976,7 @@ window.goHome = function(forceReload = false) {
   programId = null;
   document.querySelector('.app-header').style.display = 'none';
   document.getElementById('timeline').style.display = 'none';
+  const bb = document.getElementById('bottomBar'); if(bb) bb.classList.add('hidden');
   const errView = document.getElementById('error-view');
   if (errView) errView.remove();
   
@@ -984,6 +1014,7 @@ socket.on('programError', (errCode) => {
   if (errCode === 'PROGRAM_NOT_FOUND') {
     document.querySelector('.app-header').style.display = 'none';
     document.getElementById('timeline').style.display = 'none';
+  const bb = document.getElementById('bottomBar'); if(bb) bb.classList.add('hidden');
     const homeDiv = document.getElementById('home-view');
     if (homeDiv) homeDiv.style.display = 'none';
     
