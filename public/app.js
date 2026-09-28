@@ -81,13 +81,25 @@ function getFileIcon(mime) {
 }
 
 // ── Socket ──
+
+socket.on('recipientsUpdate', (data) => {
+  linkedChats = data.linkedChats || [];
+  linkedChatsMeta = data.linkedChatsMeta || {};
+  privateSubscribersCount = data.privateSubscribersCount || 0;
+  if (els.settingsModal && els.settingsModal.classList.contains('open')) {
+    openSettingsModal(); // Refresh UI dynamically
+  }
+});
 socket.on('init', (data) => {
   try {
     state = data.state;
     isAdmin = data.isAdmin;
     serverTimeOffset = Date.now() - data.serverTime;
+    linkedChats = data.linkedChats || [];
+    linkedChatsMeta = data.linkedChatsMeta || {};
+    privateSubscribersCount = data.privateSubscribersCount || 0;
 
-    if (isAdmin) els.bottomBar.classList.remove('hidden');
+    if (isAdmin) { els.bottomBar.classList.remove('hidden'); console.log('[Recipients Debug] linkedChats: ', linkedChats, 'privateSubscribersCount: ', privateSubscribersCount); }
     else els.bottomBar.classList.add('hidden');
     
     isSubscribed = !!data.isSubscribed;

@@ -369,14 +369,35 @@ io.on('connection', async (socket) => {
     let subs = pData.privateSubscribers || [];
     let isSubbed = subs.includes(uid);
 
+    console.log(`[Subscription Debug]\nprogramId: ${programId}\nuserId: ${uid}\nbefore: ${isSubbed ? 'subscribed' : 'unsubscribed'}`);
+
     if (isSubbed) {
       await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayRemove(uid) });
+      console.log(`[Subscription Debug] after: unsubscribed`);
+      
+      const afterDocUnsub = await db.collection('programs').doc(programId).get();
+      io.to(programId).emit('recipientsUpdate', {
+         linkedChats: afterDocUnsub.data().linkedChats || [],
+         linkedChatsMeta: afterDocUnsub.data().linkedChatsMeta || {},
+         privateSubscribersCount: (afterDocUnsub.data().privateSubscribers || []).length
+      });
       callback({ subscribed: false });
+
     } else {
       const canMsg = await verifyBotCanMessage(bot, uid);
       if (!canMsg) return callback({ error: "BOT_BLOCKED" });
       await db.collection('programs').doc(programId).update({ privateSubscribers: require('firebase-admin/firestore').FieldValue.arrayUnion(uid) });
+      
+      const afterDoc = await db.collection('programs').doc(programId).get();
+      console.log(`[Subscription Debug] after: subscribed (total count: ${(afterDoc.data().privateSubscribers || []).length})`);
+      
+      io.to(programId).emit('recipientsUpdate', {
+         linkedChats: afterDoc.data().linkedChats || [],
+         linkedChatsMeta: afterDoc.data().linkedChatsMeta || {},
+         privateSubscribersCount: (afterDoc.data().privateSubscribers || []).length
+      });
       callback({ subscribed: true });
+
     }
   });
 
@@ -527,11 +548,11 @@ if (BOT_TOKEN) {
 
 // Graceful shutdown
 process.once('SIGINT', () => {
-  if (bot) bot.stop('SIGINT');
+  if (bot && global.botPollingStarted) bot.stop('SIGINT');
   process.exit(0);
 });
 process.once('SIGTERM', () => {
-  if (bot) bot.stop('SIGTERM');
+  if (bot && global.botPollingStarted) bot.stop('SIGTERM');
   process.exit(0);
 });
 
@@ -599,38 +620,58 @@ process.once('SIGTERM', () => {
     }
   }
 
-  bot.start(async (ctx) => {
+    bot.start(async (ctx) => {
   if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
+    console.log(`[Group Link Debug] /start received\nchatType: ${ctx.chat.type}\nchatId: ${ctx.chat.id}\nuserId: ${ctx.from.id}\npayload: ${ctx.payload}\ntext: ${ctx.message?.text}`);
     const payload = ctx.payload;
     if (payload) {
       try {
         const doc = await db.collection('programs').doc(payload).get();
-        if (!doc.exists) {
-          return ctx.reply("❌ Програму не знайдено.");
-        }
+        if (!doc.exists) return ctx.reply("❌ Програму не знайдено.");
         const data = doc.data();
         const userId = ctx.from.id;
-        if (!data.admins.includes(userId)) {
-          return ctx.reply("❌ У вас немає прав адміністратора для цієї програми.");
+        
+        const isProgramAdmin = data.admins && data.admins.includes(userId);
+        console.log(`[Group Link Debug] program admin = ${!!isProgramAdmin}`);
+        if (!isProgramAdmin) return ctx.reply("❌ У вас немає прав адміністратора для цієї програми.");
+        
+        let isGroupAdmin = false;
+        try {
+          const member = await ctx.telegram.getChatMember(ctx.chat.id, userId);
+          isGroupAdmin = (member.status === 'administrator' || member.status === 'creator');
+        } catch(e) {
+          console.error("[Group Link Debug] Group admin check API failed:", e.message);
+          return ctx.reply("❌ Помилка перевірки прав. Переконайтеся, що ви адміністратор цієї групи і бот має права адміністратора.");
         }
         
+        console.log(`[Group Link Debug] telegram group admin = ${isGroupAdmin}`);
+        if (!isGroupAdmin) return ctx.reply("❌ Ви повинні бути адміністратором цієї групи, щоб прив'язати її.");
+        
         try {
-          const member = await ctx.getChatMember(userId);
-          if (member.status !== 'administrator' && member.status !== 'creator') {
-            return ctx.reply("❌ Ви повинні бути адміністратором цієї групи, щоб прив'язати її.");
-          }
-        } catch(e) {
-          console.error("Group admin check failed:", e);
-        }
+          const botMember = await ctx.telegram.getChatMember(ctx.chat.id, ctx.botInfo.id);
+          console.log(`[Group Link Debug] bot permissions - status: ${botMember.status}, can_delete: ${botMember.can_delete_messages}`);
+        } catch(e) { console.error("[Group Link Debug] Bot perm check err", e.message); }
+        
+        console.log(`[Group Link Debug] linking\nprogramId: ${payload}\nchatId: ${ctx.chat.id}\nchatTitle: ${ctx.chat.title}`);
         
         await db.collection('programs').doc(payload).update({
           linkedChats: require('firebase-admin/firestore').FieldValue.arrayUnion(ctx.chat.id),
           [`linkedChatsMeta.${ctx.chat.id}`]: ctx.chat.title || 'Група'
         });
         
+        const afterDoc = await db.collection('programs').doc(payload).get();
+        const afterData = afterDoc.data();
+        console.log(`[Group Link Debug] linked successfully\n[Group Link Debug] Firestore recipients after link\nlinkedChats count: ${afterData.linkedChats ? afterData.linkedChats.length : 0}`);
+        
+        io.to(payload).emit('recipientsUpdate', { 
+           linkedChats: afterData.linkedChats || [],
+           linkedChatsMeta: afterData.linkedChatsMeta || {},
+           privateSubscribersCount: (afterData.privateSubscribers || []).length
+        });
+        
         return ctx.reply(`✅ Групу успішно прив'язано до розкладу <b>${data.state?.title || payload}</b>!\nТепер сюди автоматично надходитимуть сповіщення під час Live-режиму.`, { parse_mode: 'HTML' });
       } catch (e) {
-        console.error("Link error via startgroup:", e);
+        console.error("[Group Link Debug] Link error via startgroup:", e);
         return ctx.reply("❌ Помилка прив'язки.");
       }
     }
@@ -831,7 +872,7 @@ process.once('SIGTERM', () => {
   } else {
     bot.telegram.deleteWebhook().then(() => {
       console.log("Development mode: starting long-polling...");
-      bot.launch({ drop_pending_updates: true });
+      bot.launch({ drop_pending_updates: true }).then(() => { global.botPollingStarted = true; });
     }).catch(console.error);
   }
 }
