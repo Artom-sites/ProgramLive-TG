@@ -359,7 +359,8 @@ function render() {
         }
       }, { passive: false });
 
-      const finishDrag = () => {
+      const finishDrag = (e) => {
+        if (e && e.cancelable) e.preventDefault();
         clearTimeout(pressTimer);
         if (!isDragging) return;
         isDragging = false;
@@ -368,13 +369,8 @@ function render() {
         document.querySelectorAll('.item-card').forEach(c => c.classList.remove('drop-target'));
 
         if (toIndex !== fromIndex) {
-          const dir = toIndex > fromIndex ? 1 : -1;
-          const steps = Math.abs(toIndex - fromIndex);
-          let cur = fromIndex;
-          for (let i = 0; i < steps; i++) {
-            socket.emit('moveItem', { index: cur, direction: dir });
-            cur += dir;
-          }
+          // Send single reorder event instead of loop to avoid race conditions
+          socket.emit('reorderItem', { fromIndex, toIndex });
           if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
         }
       };

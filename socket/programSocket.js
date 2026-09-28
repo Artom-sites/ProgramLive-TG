@@ -170,22 +170,19 @@ io.on('connection', async (socket) => {
     io.to(programId).emit('stateUpdate', { ...pData.state, serverTime: Date.now() });
   });
 
-  socket.on('moveItem', async ({ index, direction }) => {
+  socket.on('reorderItem', async ({ fromIndex, toIndex }) => {
     if (!isAdmin) return;
     let s = (await getProgramData(programId)).state;
-    const newIndex = index + direction;
-    if (newIndex >= 0 && newIndex < s.items.length) {
-      const temp = s.items[index];
-      s.items[index] = s.items[newIndex];
-      s.items[newIndex] = temp;
+    
+    if (fromIndex >= 0 && fromIndex < s.items.length && toIndex >= 0 && toIndex < s.items.length) {
+      const item = s.items.splice(fromIndex, 1)[0];
+      s.items.splice(toIndex, 0, item);
+      
       s = await updateProgramState(programId, { items: s.items });
       
-      const current = await getProgramData(programId);
-      const isLive = current.state.isLive === true;
+      console.log(`[Notify Debug] reorder received\nprogramId: ${programId}\nisAdmin: ${isAdmin}\nisLive: ${s.isLive}\nitems changed: true`);
       
-      console.log(`[Notify Debug] reorder received\nprogramId: ${programId}\nisAdmin: ${isAdmin}\nisLive: ${isLive}\nitems changed: true`);
-      
-      if (isLive) {
+      if (s.isLive) {
         scheduleProgramChangeNotification(programId, bot, db);
       }
       
