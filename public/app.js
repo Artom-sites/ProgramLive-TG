@@ -10,11 +10,11 @@ if (tg) {
 }
 
 const urlParams = new URLSearchParams(window.location.search);
-let startParam = tg?.initDataUnsafe?.start_param || urlParams.get('id') || null;
-let programId = startParam;
+let originalStartParam = tg?.initDataUnsafe?.start_param || urlParams.get('id') || null;
+let programId = originalStartParam;
 let notifyToken = '';
-if (startParam && startParam.includes('_')) {
-  const parts = startParam.split('_');
+if (originalStartParam && originalStartParam.includes('_')) {
+  const parts = originalStartParam.split('_');
   programId = parts[0];
   notifyToken = parts[1];
 }
@@ -29,23 +29,11 @@ window.openAttachment = function(url, name, type) {
   tg.openLink(window.location.origin + url);
 };
 
+let myProgramsCache = null;
 let socket = io({ auth: { programId, initData: tg?.initData || '', notifyToken } });
 
-socket.on('programError', (errCode) => {
-  if (errCode === 'PROGRAM_NOT_FOUND') {
-    document.body.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: var(--tg-text); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
-        <h2>Програму не знайдено 😕</h2>
-        <p style="color: var(--tg-hint); margin-bottom: 20px;">Можливо, посилання застаріло, або програму було видалено.</p>
-        <button class="btn-primary" onclick="goHome()" style="padding: 12px 24px;">До моїх програм</button>
-      </div>
-    `;
-  }
-});
 
-window.goHome = function() {
-  window.location.href = window.location.pathname; // strip query params
-};
+
 
 let state = { items: [], isLive: false, activeItemId: null, liveStartTime: null };
 let serverTimeOffset = 0;
@@ -841,13 +829,32 @@ if (els.btnSubscribe) {
 }
 
 // ── HOME VIEW LOGIC ──
+function renderHomeProgramList(programs, listEl) {
+  if (programs.length === 0) {
+    listEl.innerHTML = `<div style="text-align: center; color: var(--tg-hint); margin: 30px 0;">У вас ще немає програм. Створіть першу!</div>`;
+    return;
+  }
+  listEl.innerHTML = programs.map(p => `
+    <div class="home-program-card" onclick="window.openProgram('${p.id}')" style="
+      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+      border-radius: 12px; padding: 16px; margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+    ">
+      <div>
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">🎼 ${p.title}</div>
+        <div style="font-size: 13px; color: var(--tg-hint);">${p.itemCount} пунктів</div>
+      </div>
+      ${p.isLive ? `<div style="background: red; color: white; font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px;">LIVE</div>` : ''}
+    </div>
+  `).join('');
+}
+
 function initHomeView() {
   document.querySelector('.app-header').style.display = 'none';
   document.getElementById('timeline').style.display = 'none';
   
-  if (isAdmin && document.querySelector('.btn-small.primary')) {
-     document.querySelector('.btn-small.primary').style.display = 'none';
-  }
+  
   
   let homeDiv = document.getElementById('home-view');
   if (!homeDiv) {
@@ -856,41 +863,46 @@ function initHomeView() {
     homeDiv.className = 'home-view';
     document.body.insertBefore(homeDiv, document.body.firstChild);
   }
+  homeDiv.style.display = 'block';
   
   homeDiv.innerHTML = `
     <div style="padding: 20px; font-family: sans-serif; color: var(--tg-text);">
-      <h2 style="margin-top: 0; margin-bottom: 20px;">Мої програми</h2>
-      <div id="home-programs-list">⏳ Завантаження...</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin-top: 0; margin-bottom: 0;">Мої програми</h2>
+        <span style="font-size: 20px; cursor: pointer;" onclick="alert('Налаштування в розробці')">⚙️</span>
+      </div>
+      <div id="home-programs-list"></div>
       <button class="btn-primary" style="width: 100%; margin-top: 20px; padding: 14px;" onclick="createProgramFromHome()">➕ Створити програму</button>
     </div>
   `;
   
+  const list = document.getElementById('home-programs-list');
+  const t0 = performance.now();
+  
+  if (myProgramsCache) {
+    renderHomeProgramList(myProgramsCache, list);
+    console.log(`[Home Perf] cached render: ${Math.round(performance.now() - t0)}ms`);
+  } else {
+    // Show skeleton if network is slow
+    const loaderTimer = setTimeout(() => {
+      if (!myProgramsCache) {
+        list.innerHTML = `
+          <div style="background: var(--tg-theme-secondary-bg-color, #f5f5f5); height: 70px; border-radius: 12px; margin-bottom: 12px; opacity: 0.6; animation: pulse 1.5s infinite;"></div>
+          <div style="background: var(--tg-theme-secondary-bg-color, #f5f5f5); height: 70px; border-radius: 12px; margin-bottom: 12px; opacity: 0.6; animation: pulse 1.5s infinite;"></div>
+        `;
+      }
+    }, 150);
+  }
+
+  const t1 = performance.now();
   socket.emit('getMyPrograms', (res) => {
-    const list = document.getElementById('home-programs-list');
+    console.log(`[Home Perf] server refresh: ${Math.round(performance.now() - t1)}ms`);
     if (!res || !res.success) {
-      list.innerHTML = `<span style="color:var(--tg-theme-destructive-text-color, red)">Помилка завантаження</span>`;
+      if (!myProgramsCache) list.innerHTML = `<span style="color:var(--tg-theme-destructive-text-color, red)">Помилка завантаження</span>`;
       return;
     }
-    
-    if (res.programs.length === 0) {
-      list.innerHTML = `<div style="text-align: center; color: var(--tg-hint); margin: 30px 0;">У вас ще немає програм. Створіть першу!</div>`;
-      return;
-    }
-    
-    list.innerHTML = res.programs.map(p => `
-      <div class="home-program-card" onclick="window.location.href = '?id=${p.id}'" style="
-        background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-        border-radius: 12px; padding: 16px; margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
-        display: flex; justify-content: space-between; align-items: center;
-      ">
-        <div>
-          <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">🎼 ${p.title}</div>
-          <div style="font-size: 13px; color: var(--tg-hint);">${p.itemCount} пунктів</div>
-        </div>
-        ${p.isLive ? `<div style="background: red; color: white; font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px;">LIVE</div>` : ''}
-      </div>
-    `).join('');
+    myProgramsCache = res.programs;
+    renderHomeProgramList(myProgramsCache, list);
   });
 }
 
@@ -899,16 +911,64 @@ window.createProgramFromHome = function() {
   if (!title) return;
   socket.emit('createNewProgram', title, (res) => {
     if (res && res.success && res.programId) {
-      window.location.href = '?id=' + res.programId;
+      window.openProgram(res.programId);
     } else {
       alert("Помилка створення програми");
     }
   });
 };
 
+window.openProgram = function(id) {
+  programId = id;
+  const homeDiv = document.getElementById('home-view');
+  if (homeDiv) homeDiv.style.display = 'none';
+  
+  document.querySelector('.app-header').style.display = 'flex';
+  document.getElementById('timeline').style.display = 'block';
+  
+  
+  // Reconnect socket to new room
+  socket.auth.programId = id;
+  socket.disconnect().connect();
+  
+  if (tg?.BackButton && !tg?.initDataUnsafe?.start_param) {
+    tg.BackButton.show();
+    tg.BackButton.onClick(handleProgramBack);
+  }
+};
+
+window.goHome = function(forceReload = false) {
+  if (forceReload) {
+    window.location.href = window.location.pathname;
+    return;
+  }
+  
+  // Try SPA navigation
+  programId = null;
+  document.querySelector('.app-header').style.display = 'none';
+  document.getElementById('timeline').style.display = 'none';
+  const errView = document.getElementById('error-view');
+  if (errView) errView.remove();
+  
+  if (tg?.BackButton) {
+    tg.BackButton.hide();
+    tg.BackButton.offClick(handleProgramBack);
+  }
+  
+  socket.auth.programId = null;
+  socket.disconnect().connect();
+  
+  initHomeView();
+};
+
 if (!programId) {
   if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", initHomeView); } else { initHomeView(); }
+} else {
+  // If loaded directly via deep link, BackButton might still be needed if it was previously closed by PDF? No, deep links don't have BackButton to Home.
 }
+
+// Override original goHome that did full reload
+window.goHomeOriginal = window.goHome;
 
 // ── NAVIGATION & BACK BUTTON ──
 function handleProgramBack() {
@@ -916,10 +976,30 @@ function handleProgramBack() {
   if (pdfViewer && pdfViewer.style.display === 'flex') {
     return; // Let PDF viewer's listener handle it
   }
-  window.goHome();
+  window.goHome(false);
 }
 
-if (tg?.BackButton && !tg?.initDataUnsafe?.start_param && programId) {
-  tg.BackButton.show();
-  tg.BackButton.onClick(handleProgramBack);
-}
+// Remove the inline error handler string that used goHome() with parens, update it:
+socket.on('programError', (errCode) => {
+  if (errCode === 'PROGRAM_NOT_FOUND') {
+    document.querySelector('.app-header').style.display = 'none';
+    document.getElementById('timeline').style.display = 'none';
+    const homeDiv = document.getElementById('home-view');
+    if (homeDiv) homeDiv.style.display = 'none';
+    
+    let errView = document.getElementById('error-view');
+    if (!errView) {
+      errView = document.createElement('div');
+      errView.id = 'error-view';
+      document.body.appendChild(errView);
+    }
+    
+    errView.innerHTML = `
+      <div style="padding: 20px; text-align: center; color: var(--tg-text); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+        <h2>Програму не знайдено 😕</h2>
+        <p style="color: var(--tg-hint); margin-bottom: 20px;">Можливо, посилання застаріло, або програму було видалено.</p>
+        <button class="btn-primary" onclick="goHome(false)" style="padding: 12px 24px;">До моїх програм</button>
+      </div>
+    `;
+  }
+});
