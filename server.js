@@ -380,7 +380,7 @@ if (BOT_TOKEN) {
 
       // Contextual action buttons
       if (mode === 'view') {
-        if (myPrograms.length > 0) {
+        if (programs.length > 0) {
           buttons.push([{ text: "⚙️ Видалити програму", callback_data: `dash_${page}_edit` }]);
         }
       } else {
