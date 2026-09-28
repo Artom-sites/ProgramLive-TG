@@ -376,14 +376,13 @@ window.handleFileUpload = async (input) => {
   const file = input.files[0];
   if (!file) return;
   const itemId = els.editItemId.value;
-  if (!itemId) return;
-
-  let customName = prompt('Введіть назву для файлу:', file.name);
-  if (customName === null) {
+  if (!itemId) {
+    tg.showAlert("Спочатку збережіть цей пункт (кнопка 'Зберегти'), а вже потім прикріплюйте до нього файли!");
     input.value = '';
     return;
   }
-  customName = customName.trim() || file.name;
+
+  const customName = file.name;
 
   els.uploadProgress.classList.remove('hidden');
   els.uploadProgress.textContent = `⏳ Завантаження ${customName}...`;
