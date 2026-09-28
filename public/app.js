@@ -331,7 +331,7 @@ function render() {
     addBtn.onclick = () => {
       els.editIndex.value = -1;
       els.editItemId.value = '';
-      document.getElementById('uploadFileContainer').style.display = 'none';
+      
       els.editTitle.value = '';
       els.editType.value = 'standard';
       els.editAssignee.value = '';
@@ -339,7 +339,8 @@ function render() {
       els.editSound.value = '';
       els.editMedia.value = '';
       els.editChords.value = '';
-      if (els.editAttachmentsList) els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint)">Збережіть пункт, щоб додавати файли</div>`;
+      currentEditAttachments = [];
+      renderEditAttachments();
       els.editModal.classList.add('open');
     };
     els.timeline.appendChild(addBtn);
@@ -349,62 +350,55 @@ function render() {
 }
 
 // ── Attachment UI ──
-function renderEditAttachments(item) {
+function renderEditAttachments() {
   if (!els.editAttachmentsList) return;
-  const list = item.attachments || [];
+  const list = currentEditAttachments || [];
   if (!list.length) {
     els.editAttachmentsList.innerHTML = `<div style="font-size:13px;color:var(--tg-hint)">Файли не прикріплені</div>`;
     return;
   }
-  els.editAttachmentsList.innerHTML = list.map(a => `
+  els.editAttachmentsList.innerHTML = list.map((a, idx) => `
     <div class="attachment-row">
       <span class="attachment-icon">${getFileIcon(a.type)}</span>
       <span class="attachment-name">${a.name}</span>
-      <a href="${a.url}" target="_blank" class="attachment-open">Відкрити</a>
-      <button class="attachment-del" onclick="deleteAttachment('${item.id}','${a.url}')">×</button>
+      <button type="button" class="attachment-del" onclick="removeTempAttachment(${idx})">×</button>
     </div>
   `).join('');
 }
 
-window.deleteAttachment = (itemId, url) => {
-  if (!confirm('Ви дійсно хочете видалити цей файл?')) return;
-  const filename = url.split('/').pop();
-  fetch(`/upload/${programId}/${itemId}/${filename}`, { method: 'DELETE' });
-  const item = state.items.find(i => i.id === itemId);
-  if (item) { item.attachments = item.attachments.filter(a => a.url !== url); renderEditAttachments(item); }
+window.removeTempAttachment = (idx) => {
+  currentEditAttachments.splice(idx, 1);
+  renderEditAttachments();
 };
+
+
+
+
+function askFileName(defaultName) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('renameModal');
+    const renameInput = document.getElementById('renameInput');
+    renameInput.value = defaultName;
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+    
+    document.getElementById('btnRenameUpload').onclick = () => {
+      modal.classList.remove('open');
+      modal.style.display = '';
+      resolve(renameInput.value.trim() || defaultName);
+    };
+    
+    document.getElementById('btnRenameCancel').onclick = () => {
+      modal.classList.remove('open');
+      modal.style.display = '';
+      resolve(null);
+    };
+  });
+}
 
 window.handleFileUpload = async (input) => {
   const file = input.files[0];
   if (!file) return;
-  const itemId = els.editItemId.value;
-  if (!itemId) {
-    tg.showAlert("Спочатку збережіть цей пункт (кнопка 'Зберегти'), а вже потім прикріплюйте до нього файли!");
-    input.value = '';
-    return;
-  }
-
-  function askFileName(defaultName) {
-    return new Promise((resolve) => {
-      const modal = document.getElementById('renameModal');
-      const renameInput = document.getElementById('renameInput');
-      renameInput.value = defaultName;
-      modal.classList.add('open');
-      modal.style.display = 'flex';
-      
-      document.getElementById('btnRenameUpload').onclick = () => {
-        modal.classList.remove('open');
-        modal.style.display = '';
-        resolve(renameInput.value.trim() || defaultName);
-      };
-      
-      document.getElementById('btnRenameCancel').onclick = () => {
-        modal.classList.remove('open');
-        modal.style.display = '';
-        resolve(null);
-      };
-    });
-  }
 
   const customName = await askFileName(file.name);
   if (customName === null) {
@@ -418,41 +412,33 @@ window.handleFileUpload = async (input) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('customName', customName);
+  formData.append('userId', tg.initDataUnsafe?.user?.id || 0);
   
   try {
-    const res = await fetch(`/upload/${programId}/${itemId}`, { method: 'POST', body: formData });
+    const res = await fetch(`/upload/telegram`, { method: 'POST', body: formData });
     const data = await res.json();
     if (data.ok) {
       els.uploadProgress.textContent = `✅ ${file.name} додано!`;
       setTimeout(() => els.uploadProgress.classList.add('hidden'), 2000);
-      const item = state.items.find(i => i.id === itemId);
-      if (item) renderEditAttachments(item);
+      currentEditAttachments.push({ url: data.url, name: data.name, type: data.type, file_id: data.file_id });
+      renderEditAttachmentsLocal();
     } else {
-      throw new Error(data.error || "Невідома помилка");
+      throw new Error(data.error);
     }
   } catch (e) {
     els.uploadProgress.textContent = `❌ Помилка: ${e.message}`;
     setTimeout(() => els.uploadProgress.classList.add('hidden'), 4000);
-  } finally {
-    input.value = '';
   }
+  input.value = '';
 };
 
-// ── Modals ──
-window.openContent = (title, content) => {
-  els.modalTitle.textContent = title;
-  els.modalBody.style.fontFamily = 'monospace';
-  els.modalBody.style.whiteSpace = 'pre-wrap';
-  els.modalBody.textContent = content;
-  els.contentModal.classList.add('open');
-};
 
 window.openEdit = (index) => {
   const item = state.items[index];
   if (!item) return;
   els.editIndex.value = index;
   els.editItemId.value = item.id;
-  document.getElementById('uploadFileContainer').style.display = 'flex';
+  
   els.editTitle.value = item.title || '';
   els.editType.value = item.type || 'standard';
   els.editAssignee.value = item.assignee || '';
@@ -460,7 +446,10 @@ window.openEdit = (index) => {
   els.editSound.value = item.cues?.sound || '';
   els.editMedia.value = item.cues?.media || '';
   els.editChords.value = item.content?.chords || '';
-  renderEditAttachments(item);
+  
+  currentEditAttachments = item ? [...(item.attachments || [])] : [];
+  renderEditAttachments();
+  
   els.editModal.classList.add('open');
 };
 
@@ -473,7 +462,8 @@ els.btnSaveEdit.onclick = () => {
     duration: parseInt(els.editDuration.value || 5) * 60,
     sound: els.editSound.value,
     media: els.editMedia.value,
-    chords: els.editChords.value
+    chords: els.editChords.value,
+    attachments: currentEditAttachments
   };
 
   if (index === -1) {
@@ -481,12 +471,9 @@ els.btnSaveEdit.onclick = () => {
   } else {
     socket.emit('updateItem', { index, updatedData });
   }
-
   els.editModal.classList.remove('open');
-  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 };
 
-// ── Settings & Share ──
 const openSettingsModal = () => {
   if (!isAdmin) return;
   els.settingsTitle.value = state.title || "Програма";

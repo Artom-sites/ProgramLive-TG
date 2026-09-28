@@ -36,7 +36,7 @@ initializeApp({
   storageBucket: serviceAccount.project_id + '.appspot.com' 
 });
 const db = getFirestore();
-const bucket = getStorage().bucket();
+
 
 const app = express();
 const server = http.createServer(app);
@@ -83,92 +83,62 @@ async function updateProgramState(programId, stateUpdates) {
 }
 
 // Upload endpoint
-app.post('/upload/:programId/:itemId', upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  const { programId, itemId } = req.params;
-  const fileName = req.body.customName || req.file.originalname;
+
+// Upload file directly to Telegram and return file_id
+app.post('/upload/telegram', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  
+  const customName = req.body.customName || req.file.originalname;
+  const userId = req.body.userId;
   const fileType = req.file.mimetype;
-  const uniqueId = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-  const ext = path.extname(req.file.originalname);
-  const storagePath = `programs/${programId}/${itemId}/${uniqueId}${ext}`;
+  
+  if (!userId) return res.status(400).json({ error: "No userId provided" });
 
   try {
-    const fileRef = bucket.file(storagePath);
-    await fileRef.save(req.file.buffer, {
-      metadata: { contentType: fileType }
+    const msg = await bot.telegram.sendDocument(userId, {
+      source: req.file.buffer,
+      filename: customName
+    }, {
+      caption: `📁 <b>Файл завантажено в систему!</b>\n\nНазва: ${customName}\n<i>Він тепер прикріплений до вашої програми. Ви можете видалити це повідомлення.</i>`,
+      parse_mode: 'HTML'
     });
-    
-    // Instead of relying on Firebase public ACLs or IAM signed URLs (which often block on new projects),
-    // we serve the file securely through our own backend proxy.
-    const fileUrl = `/download/${programId}/${itemId}/${uniqueId}${ext}`;
 
-    let data = await getProgramData(programId);
-    let state = data.state;
-    const itemIndex = state.items.findIndex(i => i.id === itemId);
-    if (itemIndex !== -1) {
-      if (!state.items[itemIndex].attachments) state.items[itemIndex].attachments = [];
-      state.items[itemIndex].attachments.push({ 
-        url: fileUrl, 
-        storagePath, 
-        name: fileName, 
-        type: fileType,
-        uploadedAt: Date.now()
-      });
-      state = await updateProgramState(programId, { items: state.items });
-      io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
-    }
-    res.json({ ok: true, url: fileUrl, name: fileName });
+    const file_id = msg.document.file_id;
+    
+    res.json({ 
+      ok: true, 
+      file_id, 
+      name: customName, 
+      type: fileType,
+      url: `/download/telegram/${file_id}?name=${encodeURIComponent(customName)}`
+    });
   } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ error: err.message || "Failed to upload" });
+    console.error("Telegram Upload error:", err);
+    res.status(500).json({ error: err.message || "Failed to upload to Telegram" });
   }
 });
 
-// Proxy route to bypass Firebase IAM/Public ACL restrictions
-app.get('/download/:programId/:itemId/:filename', async (req, res) => {
+// Download file via Telegram file_id
+const https = require('https');
+app.get('/download/telegram/:fileId', async (req, res) => {
   try {
-    const { programId, itemId, filename } = req.params;
-    const storagePath = `programs/${programId}/${itemId}/${filename}`;
-    const file = bucket.file(storagePath);
+    const fileId = req.params.fileId;
+    const originalName = req.query.name || 'file';
     
-    const [exists] = await file.exists();
-    if (!exists) return res.status(404).send('File not found');
-
-    const [metadata] = await file.getMetadata();
-    res.setHeader('Content-Type', metadata.contentType || 'application/octet-stream');
+    const link = await bot.telegram.getFileLink(fileId);
     
-    file.createReadStream().pipe(res);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
+    
+    https.get(link.href, (stream) => {
+      stream.pipe(res);
+    }).on('error', (err) => {
+      console.error("Stream error:", err);
+      res.status(500).send('Error downloading file');
+    });
   } catch (err) {
     console.error("Download proxy error:", err);
     res.status(500).send('Error downloading file');
   }
-});
-
-// Delete file endpoint
-app.delete('/upload/:programId/:itemId/:filename', async (req, res) => {
-  const { programId, itemId } = req.params;
-  // Note: we can't easily rely on filename anymore if it's a full URL.
-  // The frontend passes the URL or filename. Let's look up the storagePath.
-  const queryFilename = req.params.filename; 
-
-  let data = await getProgramData(programId);
-  let state = data.state;
-  const itemIndex = state.items.findIndex(i => i.id === itemId);
-  
-  if (itemIndex !== -1 && state.items[itemIndex].attachments) {
-    const attachment = state.items[itemIndex].attachments.find(a => a.url.includes(queryFilename) || (a.storagePath && a.storagePath.includes(queryFilename)));
-    
-    if (attachment) {
-      state.items[itemIndex].attachments = state.items[itemIndex].attachments.filter(a => a !== attachment);
-      state = await updateProgramState(programId, { items: state.items });
-      io.to(programId).emit('stateUpdate', { ...state, serverTime: Date.now() });
-      
-      if (attachment.storagePath) {
-        try { await bucket.file(attachment.storagePath).delete(); } catch(e) { console.error("Firebase delete error:", e); }
-      }
-    }
-  }
-  res.json({ ok: true });
 });
 
 // Notify linked groups endpoint
@@ -274,7 +244,7 @@ io.on('connection', async (socket) => {
         duration: updatedData.duration,
         assignee: updatedData.assignee,
         cues: { ...s.items[index].cues, sound: updatedData.sound, media: updatedData.media },
-        content: { ...(s.items[index].content || {}), chords: updatedData.chords }
+        content: { ...(s.items[index].content || {}), chords: updatedData.chords }, attachments: updatedData.attachments || s.items[index].attachments || []
       };
       s = await updateProgramState(programId, { items: s.items });
       io.to(programId).emit('stateUpdate', { ...s, serverTime: Date.now() });
@@ -527,49 +497,7 @@ if (BOT_TOKEN) {
 
 // Background cleanup task (runs daily)
 // Deletes files older than 48 hours to save storage and keep things clean
-async function cleanupExpiredFiles() {
-  console.log("Running background cleanup for expired attachments...");
-  const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
-  
-  try {
-    const snapshot = await db.collection('programs').get();
-    for (const doc of snapshot.docs) {
-      let data = doc.data();
-      let state = data.state;
-      let changed = false;
-      
-      if (state && state.items) {
-        state.items.forEach(item => {
-          if (item.attachments && item.attachments.length > 0) {
-            const validAttachments = item.attachments.filter(a => {
-              // Only delete if it has a timestamp and is older than 48h
-              if (a.uploadedAt && a.uploadedAt < twoDaysAgo) {
-                if (a.storagePath) {
-                  bucket.file(a.storagePath).delete().catch(() => null);
-                }
-                return false;
-              }
-              return true;
-            });
-            if (validAttachments.length !== item.attachments.length) {
-              item.attachments = validAttachments;
-              changed = true;
-            }
-          }
-        });
-      }
-      if (changed) {
-        await db.collection('programs').doc(doc.id).update({ state });
-      }
-    }
-  } catch(e) {
-    console.error("Cleanup error:", e);
-  }
-}
 
-// Run cleanup on startup and every 12 hours
-cleanupExpiredFiles();
-setInterval(cleanupExpiredFiles, 12 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 RUNNING ON PORT ${PORT}`));
