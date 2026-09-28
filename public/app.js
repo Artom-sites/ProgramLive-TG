@@ -117,6 +117,31 @@ socket.on('init', (data) => {
     updateSubscribeUI();
     
     render();
+    
+    // First-time subscription prompt
+    if (!isSubscribed) {
+      const promptKey = 'hasSeenSubPrompt_' + programId;
+      if (!localStorage.getItem(promptKey)) {
+        localStorage.setItem(promptKey, 'true');
+        if (tg && tg.showPopup) {
+          // slight delay so the UI renders first
+          setTimeout(() => {
+            tg.showPopup({
+              title: 'Сповіщення 🔔',
+              message: 'Бажаєте отримувати особисті повідомлення, якщо в розкладі відбудуться зміни?',
+              buttons: [
+                { id: 'yes', text: 'Так, увімкнути', type: 'default' },
+                { id: 'no', text: 'Ні, дякую', type: 'destructive' }
+              ]
+            }, (btnId) => {
+              if (btnId === 'yes') {
+                if (els.btnSubscribe) els.btnSubscribe.click();
+              }
+            });
+          }, 500);
+        }
+      }
+    }
   } catch(e) {
     console.error('Init Error:', e);
   }
