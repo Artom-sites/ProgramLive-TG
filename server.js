@@ -12,25 +12,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { verifyBotCanMessage, sendLiveStarted, scheduleProgramChangeNotification, triggerProgramChangeNotification } = require('./services/notifications');
 const { sendDocumentWithRetry } = require('./services/telegramUpload');
-
-function validateWebAppData(initData, token) {
-  if (!initData) return null;
-  try {
-    const q = new URLSearchParams(initData);
-    const hash = q.get('hash');
-    if (!hash) return null;
-    q.delete('hash');
-    const keys = Array.from(q.keys()).sort();
-    const dataCheckString = keys.map(k => k + '=' + q.get(k)).join('\n');
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token.trim()).digest();
-    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-    if (calculatedHash === hash) {
-      const userStr = q.get('user');
-      if (userStr) return JSON.parse(userStr);
-    }
-  } catch (e) {}
-  return null;
-}
+const { validateTelegramInitData } = require('./services/telegramAuth');
 
 
 const { initializeApp, cert } = require('firebase-admin/app');
@@ -223,24 +205,7 @@ app.post('/notify/:programId', express.json(), async (req, res) => {
   const { programId } = req.params;
   const { initData } = req.body;
   
-  let user = null;
-  if (initData) {
-    try {
-      const q = new URLSearchParams(initData);
-      const hash = q.get('hash');
-      if (hash) {
-        q.delete('hash');
-        const keys = Array.from(q.keys()).sort();
-        const dataCheckString = keys.map(k => k + '=' + q.get(k)).join('\n');
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-        if (calculatedHash === hash) {
-          const userStr = q.get('user');
-          if (userStr) user = JSON.parse(userStr);
-        }
-      }
-    } catch(e) { }
-  }
+  let user = validateTelegramInitData(initData, BOT_TOKEN, false);
   const userId = user ? user.id : null;
 
   if (!userId) return res.status(403).json({ error: "Unauthorized" });
@@ -272,49 +237,12 @@ io.on('connection', async (socket) => {
   
   // --- SERVER-SIDE DEBUG LOGGING ---
   console.log(`[Auth Debug] New connection for programId: ${programId}`);
-  console.log(`[Auth Debug] initData exists: ${!!initData}`);
   
   let userId = null;
-  if (initData) {
-    try {
-      const q = new URLSearchParams(initData);
-      const keys = Array.from(q.keys());
-      console.log(`[Auth Debug] Received parameters: ${keys.join(', ')}`);
-      
-      const hash = q.get('hash');
-      console.log(`[Auth Debug] hash exists: ${!!hash}`);
-      
-      if (hash) {
-        q.delete('hash');
-        const sortedKeys = Array.from(q.keys()).sort();
-        const dataCheckString = sortedKeys.map(k => k + '=' + q.get(k)).join('\n');
-        
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-        
-        console.log(`[Auth Debug] calculatedHash === receivedHash: ${calculatedHash === hash}`);
-        
-        if (calculatedHash === hash) {
-          const userStr = q.get('user');
-          if (userStr) {
-            const parsedUser = JSON.parse(userStr);
-            userId = parsedUser.id;
-            socket.data.firstName = parsedUser.first_name || 'Користувач';
-            console.log(`[Auth Debug] Validation SUCCESS. User ID: ${userId}`);
-          } else {
-            console.log(`[Auth Debug] Validation failed: 'user' parameter is missing.`);
-          }
-        } else {
-          console.log(`[Auth Debug] Validation failed: Hash mismatch.`);
-        }
-      } else {
-        console.log(`[Auth Debug] Validation failed: No hash provided.`);
-      }
-    } catch (e) {
-      console.log(`[Auth Debug] Validation Exception: ${e.message}`);
-    }
-  } else {
-    console.log(`[Auth Debug] Validation skipped: No initData.`);
+  const parsedUser = validateTelegramInitData(initData, BOT_TOKEN, true);
+  if (parsedUser) {
+    userId = parsedUser.id;
+    socket.data.firstName = parsedUser.first_name || 'Користувач';
   }
   // ---------------------------------
 
