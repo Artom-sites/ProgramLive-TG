@@ -21,6 +21,20 @@
 
   <div id="timeline" class="timeline"></div>
 
+  <!-- Rename File Modal -->
+  <div id="renameModal" class="modal-overlay" style="z-index: 10000; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-card); padding:20px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+      <h3 style="margin-top:0; color:var(--tg-text); font-size:18px;">Назва файлу</h3>
+      <div class="form-group-modern" style="margin-bottom:20px;">
+        <input type="text" id="renameInput" placeholder="Введіть назву..." style="width:100%;">
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button id="btnRenameCancel" class="btn-primary" style="background:var(--tg-hint); flex:1;">Скасувати</button>
+        <button id="btnRenameUpload" class="btn-primary" style="flex:1;">Завантажити</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Modal -->
   <div id="settingsModal" class="modal-overlay">
     <div class="modal-header">
@@ -124,6 +138,6 @@
   </div>
 
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

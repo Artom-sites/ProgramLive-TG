@@ -382,7 +382,33 @@ window.handleFileUpload = async (input) => {
     return;
   }
 
-  const customName = file.name;
+  function askFileName(defaultName) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('renameModal');
+      const renameInput = document.getElementById('renameInput');
+      renameInput.value = defaultName;
+      modal.classList.add('open');
+      modal.style.display = 'flex';
+      
+      document.getElementById('btnRenameUpload').onclick = () => {
+        modal.classList.remove('open');
+        modal.style.display = '';
+        resolve(renameInput.value.trim() || defaultName);
+      };
+      
+      document.getElementById('btnRenameCancel').onclick = () => {
+        modal.classList.remove('open');
+        modal.style.display = '';
+        resolve(null);
+      };
+    });
+  }
+
+  const customName = await askFileName(file.name);
+  if (customName === null) {
+    input.value = '';
+    return;
+  }
 
   els.uploadProgress.classList.remove('hidden');
   els.uploadProgress.textContent = `⏳ Завантаження ${customName}...`;
