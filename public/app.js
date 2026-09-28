@@ -112,11 +112,9 @@ socket.on('init', (data) => {
     else els.bottomBar.classList.add('hidden');
     
     isSubscribed = !!data.isSubscribed;
-    if (!isAdmin) {
-      if (els.btnSubscribe) els.btnSubscribe.style.display = 'inline-flex';
-      if (els.btnSubscribe) els.btnSubscribe.classList.remove('hidden');
-      updateSubscribeUI();
-    }
+    if (els.btnSubscribe) els.btnSubscribe.style.display = 'inline-flex';
+    if (els.btnSubscribe) els.btnSubscribe.classList.remove('hidden');
+    updateSubscribeUI();
     
     render();
   } catch(e) {
