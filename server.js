@@ -111,7 +111,7 @@ app.get('/download/telegram/:fileId', async (req, res) => {
   try {
     const fileId = req.params.fileId;
 
-    if (process.env.LOAD_TEST_MODE === 'true') {
+    if (process.env.LOAD_TEST_MODE === 'true' && process.env.K_SERVICE === 'programlive-staging') {
       if (fileId === 'TEST_1MB') {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -120,8 +120,27 @@ app.get('/download/telegram/:fileId', async (req, res) => {
       }
       if (fileId === 'TEST_5MB') {
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        res.send(Buffer.alloc(5 * 1024 * 1024, 'A')); // 5MB fake
+        res.setHeader('Content-Length', '5242880');
+        res.setHeader('Cache-Control', 'no-store');
+        
+        const { Readable } = require('stream');
+        const totalSize = 5242880;
+        const chunkSize = 65536;
+        let bytesSent = 0;
+        
+        const stream = new Readable({
+          read() {
+            if (bytesSent >= totalSize) {
+              this.push(null);
+            } else {
+              const toSend = Math.min(chunkSize, totalSize - bytesSent);
+              this.push(Buffer.alloc(toSend, 'A'));
+              bytesSent += toSend;
+            }
+          }
+        });
+        
+        stream.pipe(res);
         return;
       }
     }
