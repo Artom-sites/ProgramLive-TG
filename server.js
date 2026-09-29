@@ -163,6 +163,7 @@ app.get('/download/telegram/:fileId', async (req, res) => {
     }
 
     
+    console.log("fileId:", fileId, "fileInfo:", fileInfo);
     if (!fileInfo || Date.now() - fileInfo.time > 30 * 60 * 1000) {
       const t1 = Date.now();
       const tgFile = await bot.telegram.getFile(fileId);
