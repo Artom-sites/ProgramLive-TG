@@ -1,5 +1,3 @@
-const { validateLoadTestEnvironment } = require('./services/loadTestGuard');
-validateLoadTestEnvironment();
 require('dotenv').config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const express = require('express');
