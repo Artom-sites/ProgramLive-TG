@@ -64,7 +64,7 @@ process.once('SIGTERM', () => {
       pagePrograms.forEach(p => {
         const title = p.state?.title || `Програма ${p.id}`;
         if (mode === 'view') {
-          buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://programlive-tg.onrender.com/?id=${p.id}` } }]);
+          buttons.push([{ text: `📂 ${title}`, web_app: { url: `https://programlive-prod-rj2vwmmdlq-ew.a.run.app/?id=${p.id}` } }]);
         } else {
           buttons.push([{ text: `❌ Видалити "${title}"`, callback_data: `del_${p.id}_${page}` }]);
         }
@@ -278,7 +278,7 @@ process.once('SIGTERM', () => {
       await ctx.reply(`✅ Програму «${programNameFinal}» успішно створено!\nНатисніть кнопку нижче, щоб додати пункти розкладу.`, {
         reply_markup: {
           inline_keyboard: [[
-            { text: "📱 Відкрити програму", web_app: { url: `https://programlive-tg.onrender.com/?id=${newId}` } }
+            { text: "📱 Відкрити програму", web_app: { url: `https://programlive-prod-rj2vwmmdlq-ew.a.run.app/?id=${newId}` } }
           ]]
         }
       }).catch(()=>null);
