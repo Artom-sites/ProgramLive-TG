@@ -153,17 +153,7 @@ app.get('/download/telegram/:fileId', async (req, res) => {
 
     const originalName = req.query.name || 'file.pdf';
     let fileInfo = telegramFileCache.get(fileId);
-    if (process.env.LOAD_TEST_MODE === 'true' && fileId.startsWith('TEST_CACHE_')) {
-      fileInfo = {
-        href: 'https://programlive-staging-219872362299.europe-west1.run.app/download/telegram/TEST_5MB',
-        uniqueId: 'mock_uid_' + fileId,
-        time: Date.now()
-      };
-      telegramFileCache.set(fileId, fileInfo);
-    }
 
-    
-    console.log("fileId:", fileId, "fileInfo:", fileInfo);
     if (!fileInfo || Date.now() - fileInfo.time > 30 * 60 * 1000) {
       const t1 = Date.now();
       const tgFile = await bot.telegram.getFile(fileId);
