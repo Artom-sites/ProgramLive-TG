@@ -366,3 +366,6 @@ body {
 .action-icon.secondary {
   background: rgba(128,128,128,0.15); color: var(--tg-text);
 }
+
+
+.hidden { display: none !important; }
