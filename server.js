@@ -104,6 +104,12 @@ app.post('/upload/telegram', (req, res, next) => {
 
 // Download file via Telegram file_id
 const https = require('https');
+const { Storage } = require('@google-cloud/storage');
+const storage = new Storage();
+const gcsBucketName = process.env.GCS_PDF_CACHE_BUCKET || 'programlive-staging-pdf-cache';
+const gcsBucket = storage.bucket(gcsBucketName);
+const activeDownloads = new Map();
+
 const telegramFileCache = new Map();
 
 app.get('/download/telegram/:fileId', async (req, res) => {
@@ -145,39 +151,117 @@ app.get('/download/telegram/:fileId', async (req, res) => {
       }
     }
 
-    const originalName = req.query.name || 'file';
+    const originalName = req.query.name || 'file.pdf';
+    let fileInfo = telegramFileCache.get(fileId);
     
-    let linkStr = telegramFileCache.get(fileId)?.href;
-    const cacheTime = telegramFileCache.get(fileId)?.time || 0;
-    
-    if (!linkStr || Date.now() - cacheTime > 30 * 60 * 1000) {
+    if (!fileInfo || Date.now() - fileInfo.time > 30 * 60 * 1000) {
       const t1 = Date.now();
-      const link = await bot.telegram.getFileLink(fileId);
+      const tgFile = await bot.telegram.getFile(fileId);
+      const tgLink = await bot.telegram.getFileLink(fileId);
       console.log(`[PDF Proxy Perf] getFile metadata: ${Date.now() - t1}ms`);
-      linkStr = link.href;
-      telegramFileCache.set(fileId, { href: linkStr, time: Date.now() });
+      
+      fileInfo = {
+        href: tgLink.href,
+        uniqueId: tgFile.file_unique_id,
+        time: Date.now()
+      };
+      telegramFileCache.set(fileId, fileInfo);
     }
-    
-    const t2 = Date.now();
-    https.get(linkStr, (telegramRes) => {
-      console.log(`[PDF Proxy Perf] Telegram first response: ${Date.now() - t2}ms`);
-      let contentType = telegramRes.headers['content-type'] || 'application/octet-stream';
-      if (originalName.toLowerCase().endsWith('.pdf')) {
-        contentType = 'application/pdf';
-      }
-      
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      
-      telegramRes.pipe(res);
-      telegramRes.on('end', () => {
-        console.log(`[PDF Proxy Perf] proxy completed: ${Date.now() - startTime}ms`);
+
+    const uniqueId = fileInfo.uniqueId;
+    const gcsPath = `pdf/${uniqueId}.pdf`;
+    const gcsFile = gcsBucket.file(gcsPath);
+
+    const [exists] = await gcsFile.exists();
+    if (exists) {
+      const [url] = await gcsFile.getSignedUrl({
+        version: 'v4',
+        action: 'read',
+        expires: Date.now() + 2 * 60 * 60 * 1000
       });
-    }).on('error', (err) => {
-      console.error("Stream error:", err);
-      res.status(500).send('Error downloading file');
+      return res.redirect(302, url);
+    }
+
+    if (activeDownloads.has(uniqueId)) {
+      try {
+        const url = await activeDownloads.get(uniqueId);
+        return res.redirect(302, url);
+      } catch (err) {
+        return res.status(500).send("Upload failed previously, try again");
+      }
+    }
+
+    const uploadPromise = new Promise((resolve, reject) => {
+      let isResolved = false;
+      const t2 = Date.now();
+      
+      const telegramReq = https.get(fileInfo.href, (telegramRes) => {
+        console.log(`[PDF Proxy Perf] Telegram first response: ${Date.now() - t2}ms`);
+        
+        if (telegramRes.statusCode !== 200) {
+          return reject(new Error("Telegram bad status: " + telegramRes.statusCode));
+        }
+
+        let contentType = telegramRes.headers['content-type'] || 'application/octet-stream';
+        if (originalName.toLowerCase().endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        }
+        
+        const writeStream = gcsFile.createWriteStream({
+          resumable: false,
+          metadata: {
+            contentType: contentType,
+            contentDisposition: `inline; filename="${encodeURIComponent(originalName)}"`,
+            metadata: { telegram_file_id: fileId, telegram_file_unique_id: uniqueId }
+          }
+        });
+
+        telegramRes.pipe(writeStream);
+        
+        writeStream.on('finish', async () => {
+          console.log(`[PDF Proxy Perf] Upload to GCS completed: ${Date.now() - startTime}ms`);
+          try {
+            const [url] = await gcsFile.getSignedUrl({
+              version: 'v4',
+              action: 'read',
+              expires: Date.now() + 2 * 60 * 60 * 1000
+            });
+            isResolved = true;
+            resolve(url);
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        writeStream.on('error', (err) => {
+          reject(err);
+        });
+      });
+
+      telegramReq.on('error', reject);
+      telegramReq.setTimeout(30000, () => {
+        telegramReq.destroy();
+        reject(new Error("Telegram timeout"));
+      });
+    }).catch(async (err) => {
+      console.error("GCS Upload Error:", err);
+      try {
+        await gcsFile.delete({ ignoreNotFound: true });
+      } catch(e) {}
+      throw err;
+    }).finally(() => {
+      activeDownloads.delete(uniqueId);
     });
+
+    activeDownloads.set(uniqueId, uploadPromise);
+
+    try {
+      const url = await uploadPromise;
+      return res.redirect(302, url);
+    } catch (err) {
+      return res.status(500).send("Error caching file");
+    }
+
   } catch (err) {
     console.error("Download proxy error:", err);
     res.status(500).send('Error downloading file');
