@@ -152,6 +152,38 @@ body {
   margin-top: 4px; outline: none;
 }
 .form-layout input:focus, .form-layout textarea:focus { border-color: var(--tg-btn); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--tg-text);
+  border: 1px solid var(--border-subtle);
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-secondary:hover {
+  background: rgba(128,128,128,0.1);
+}
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--c-danger);
+  border: none;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.2s;
+}
+.btn-danger:active { opacity: 0.7; }
+
 .btn-primary {
   background: var(--tg-btn); color: var(--tg-btn-text);
   border: none; padding: 14px; font-size: 15px; font-weight: 700;

@@ -661,11 +661,13 @@ const openSettingsModal = () => {
     titleSpan.style.maxWidth = '70%';
     
     const unlinkBtn = document.createElement('button');
-    unlinkBtn.innerText = '×';
+    unlinkBtn.innerText = 'Видалити';
     unlinkBtn.className = 'btn-secondary';
-    unlinkBtn.style.padding = '4px 10px';
-    unlinkBtn.style.fontSize = '14px';
+    unlinkBtn.style.padding = '6px 12px';
+    unlinkBtn.style.fontSize = '12px';
     unlinkBtn.style.color = 'var(--c-danger)';
+    unlinkBtn.style.border = 'none';
+    unlinkBtn.style.background = 'rgba(239, 68, 68, 0.1)';
     unlinkBtn.onclick = () => {
       if (confirm('Видалити отримувача?')) {
         socket.emit(type === 'group' ? 'unlinkGroup' : 'unlinkPrivate', id);
