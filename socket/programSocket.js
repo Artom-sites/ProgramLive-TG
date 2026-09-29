@@ -309,6 +309,17 @@ io.on('connection', async (socket) => {
     });
   });
 
+  
+  // --- STAGING LOAD TEST PING ---
+  console.log("Checking LOAD_TEST_MODE:", process.env.LOAD_TEST_MODE);
+  if (process.env.LOAD_TEST_MODE === 'true') {
+    socket.on('loadTestPing', ({ seq, sentAt }) => {
+      if (process.env.LOAD_TEST_MODE !== 'true') return;
+      io.to(programId).emit('loadTestPong', { seq, sentAt });
+    });
+  }
+  // ------------------------------
+
   socket.on('unlinkPrivate', async (uid) => {
     if (!isAdmin) return;
     const { FieldValue } = require('firebase-admin/firestore');

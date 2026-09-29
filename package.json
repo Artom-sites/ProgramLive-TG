@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "load:100": "node tests/load-test.js --users=100 --ramp=60 --duration=600",
+    "load:300": "node tests/load-test.js --users=300 --ramp=60 --duration=600",
     "verify": "npm run check && npm run test",
     "start": "node server.js",
     "check": "node tests/smoke.js",

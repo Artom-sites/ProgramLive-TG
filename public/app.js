@@ -831,7 +831,22 @@ if (els.btnSubscribe) {
 // ── HOME VIEW LOGIC ──
 function renderHomeProgramList(programs, listEl) {
   if (programs.length === 0) {
-    listEl.innerHTML = `<div style="text-align: center; color: var(--tg-hint); margin: 30px 0;">У вас ще немає програм. Створіть першу!</div>`;
+    listEl.innerHTML = `
+    <div style="text-align: center; color: var(--tg-hint); margin: 40px 20px;">
+      <div style="font-size: 48px; margin-bottom: 16px;">📂</div>
+      <h3 style="color: var(--tg-theme-text-color, #000); margin-bottom: 8px;">У вас ще немає програм</h3>
+      <p style="font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
+        Створіть свою першу програму, щоб почати працювати з розкладом, додавати пункти та ноти.
+      </p>
+      <button onclick="createProgramFromHome()" style="
+        background: var(--tg-theme-button-color, #3390ec);
+        color: var(--tg-theme-button-text-color, #fff);
+        border: none; border-radius: 8px;
+        padding: 12px 24px; font-size: 16px;
+        font-weight: 500; cursor: pointer;
+      ">➕ Створити програму</button>
+    </div>
+  `;
     return;
   }
   listEl.innerHTML = programs.map(p => `

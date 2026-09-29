@@ -1,3 +1,5 @@
+const { validateLoadTestEnvironment } = require('./services/loadTestGuard');
+validateLoadTestEnvironment();
 require('dotenv').config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const express = require('express');
@@ -135,6 +137,22 @@ app.get('/download/telegram/:fileId', async (req, res) => {
   const startTime = Date.now();
   try {
     const fileId = req.params.fileId;
+
+    if (process.env.LOAD_TEST_MODE === 'true') {
+      if (fileId === 'TEST_1MB') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.send(Buffer.alloc(1024 * 1024, 'A')); // 1MB fake
+        return;
+      }
+      if (fileId === 'TEST_5MB') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.send(Buffer.alloc(5 * 1024 * 1024, 'A')); // 5MB fake
+        return;
+      }
+    }
+
     const originalName = req.query.name || 'file';
     
     let linkStr = telegramFileCache.get(fileId)?.href;
@@ -217,4 +235,26 @@ setupSockets(io, bot, db, BOT_TOKEN);
 
 
 const PORT = process.env.PORT || 3000;
+
+if (process.env.LOAD_TEST_MODE === 'true') {
+  console.log("⚠️ LOAD_TEST_MODE IS ACTIVE");
+  const { monitorEventLoopDelay } = require('perf_hooks');
+  const h = monitorEventLoopDelay({ resolution: 20 });
+  h.enable();
+  setInterval(() => {
+    const mem = process.memoryUsage();
+    const rss = Math.round(mem.rss / 1024 / 1024);
+    const heap = Math.round(mem.heapUsed / 1024 / 1024);
+    const sockets = io.engine.clientsCount;
+    
+    const p50 = Math.round(h.percentile(50) / 1e6);
+    const p95 = Math.round(h.percentile(95) / 1e6);
+    const max = Math.round(h.max / 1e6);
+    
+    console.log(`[LoadMetrics] Sockets: ${sockets} | RAM: ${rss}MB (Heap: ${heap}MB) | EL_Lag(ms): p50=${p50} p95=${p95} max=${max}`);
+    h.reset();
+  }, 5000);
+}
+
 server.listen(PORT, () => console.log(`🚀 RUNNING ON PORT ${PORT}`));
+  
