@@ -330,22 +330,22 @@ process.once('SIGTERM', () => {
   });
 
   
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
-  if (isProduction) {
-    const webhookUrl = `https://programlive-tg.onrender.com/telegram/webhook`;
+  const setWebhookFlag = process.env.TELEGRAM_SET_WEBHOOK !== 'false';
+  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+  
+  if (webhookUrl && setWebhookFlag) {
     bot.telegram.setWebhook(webhookUrl, {
       allowed_updates: ['message', 'inline_query', 'chosen_inline_result', 'callback_query'],
-      }).then(() => {
+    }).then(() => {
       console.log(`Telegram webhook configured\nWebhook URL: ${webhookUrl}`);
-      bot.telegram.getWebhookInfo().then(info => {
-        console.log(`Webhook info:\nconfigured: true\npending_update_count: ${info.pending_update_count}\nlast_error_message: ${info.last_error_message || 'none'}`);
-      });
     }).catch(console.error);
-  } else {
+  } else if (!webhookUrl && setWebhookFlag) {
     bot.telegram.deleteWebhook().then(() => {
       console.log("Development mode: starting long-polling...");
       bot.launch({ drop_pending_updates: true }).then(() => { global.botPollingStarted = true; });
     }).catch(console.error);
+  } else {
+    console.log("Skipping webhook setup (TELEGRAM_SET_WEBHOOK=false or WEBHOOK_URL missing). Bot is running in API-only mode.");
   }
 }
 
