@@ -92,19 +92,32 @@
   
   <!-- Share Modal -->
   <div class="modal-overlay" id="shareModal">
-    <div class="modal-header">
-      <div class="modal-title">Поділитися програмою</div>
-      <button class="btn-close" id="btnCloseShare">&times;</button>
+    <div class="modal-header" style="border-bottom: none; padding-bottom: 8px;">
+      <div class="modal-title" style="font-size: 20px; font-weight: 800;">Поділитися</div>
+      <button class="btn-close" id="btnCloseShare" style="background: var(--bg-card); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 20px;">&times;</button>
     </div>
-    <div class="modal-content" style="display:flex; flex-direction:column; gap:16px; padding:20px;">
-      <button class="btn-primary" id="btnShareGroup" style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:16px; padding:16px;">
-        <span>👥</span> Додати в групу
-      </button>
-      <div style="font-size:12px; color:var(--tg-hint); text-align:center; margin-top:-8px;">Група автоматично отримуватиме сповіщення</div>
+    <div class="modal-content" style="display:flex; flex-direction:column; gap:12px; padding: 12px 20px 32px 20px;">
       
-      <button class="btn-secondary" id="btnSharePerson" style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:16px; padding:16px;">
-        <span>👤</span> Надіслати людині
-      </button>
+      <div id="btnShareGroup" class="action-card">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div class="action-icon primary">👥</div>
+          <div style="flex: 1;">
+            <div style="font-size: 16px; font-weight: 700; color: var(--tg-text); margin-bottom: 4px;">Додати в групу</div>
+            <div style="font-size: 13px; color: var(--tg-hint); line-height: 1.3;">Група отримуватиме сповіщення та оновлення програми.</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="btnSharePerson" class="action-card">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div class="action-icon secondary">👤</div>
+          <div style="flex: 1;">
+            <div style="font-size: 16px; font-weight: 700; color: var(--tg-text); margin-bottom: 4px;">Надіслати особисто</div>
+            <div style="font-size: 13px; color: var(--tg-hint); line-height: 1.3;">Переслати посилання на цю програму в приватні повідомлення.</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
