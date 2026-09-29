@@ -1,6 +1,27 @@
 const crypto = require('crypto');
 
 function validateTelegramInitData(initData, token, debug = false) {
+
+  // --- STAGING LOAD TEST AUTH BYPASS ---
+  if (process.env.LOAD_TEST_MODE === 'true') {
+    if (initData.startsWith('LOAD_ADMIN_')) {
+      if (initData.split('_')[2] === process.env.LOAD_TEST_SECRET) {
+        if (debug) console.log("[Auth Debug] LOAD_TEST_MODE Admin connected.");
+        return { id: 999999999, first_name: 'LoadAdmin' };
+      }
+    }
+    if (initData.startsWith('LOAD_VIEWER_')) {
+      const parts = initData.split('_');
+      if (parts[3] === process.env.LOAD_TEST_SECRET) {
+        return { id: 10000000 + parseInt(parts[2], 10), first_name: 'LoadViewer_' + parts[2] };
+      }
+    }
+  }
+  // -------------------------------------
+
+
+  
+
   if (!initData) {
     if (debug) console.log(`[Auth Debug] Validation skipped: No initData.`);
     return null;
