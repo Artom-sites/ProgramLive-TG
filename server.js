@@ -17,34 +17,7 @@ const { sendDocumentWithRetry } = require('./services/telegramUpload');
 const { validateTelegramInitData } = require('./services/telegramAuth');
 
 
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
-const { getStorage } = require('firebase-admin/storage');
-
-let serviceAccount;
-try {
-  if (fs.existsSync(path.join(__dirname, 'firebase-key.json'))) {
-    serviceAccount = require('./firebase-key.json');
-    console.log("Firebase key loaded from ./firebase-key.json");
-  } else if (fs.existsSync('/etc/secrets/firebase-key.json')) {
-    serviceAccount = require('/etc/secrets/firebase-key.json');
-    console.log("Firebase key loaded from /etc/secrets/firebase-key.json");
-  } else if (process.env.FIREBASE_CREDENTIALS) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-    console.log("Firebase key loaded from environment variables");
-  } else {
-    throw new Error("Cannot find firebase-key.json file or FIREBASE_CREDENTIALS env var");
-  }
-} catch (err) {
-  console.error("FATAL ERROR loading Firebase key:", err.message);
-  process.exit(1);
-}
-
-initializeApp({ 
-  credential: cert(serviceAccount),
-  storageBucket: serviceAccount.project_id + '.appspot.com' 
-});
-const db = getFirestore();
+const { db } = require('./config/firebase');
 
 
 const app = express();

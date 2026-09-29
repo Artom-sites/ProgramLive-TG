@@ -4,6 +4,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const debounceTimers = new Map();
 
 async function verifyBotCanMessage(bot, userId) {
+  if (!bot) return false;
   try {
     await bot.telegram.sendChatAction(userId, 'typing');
     return true;
@@ -13,6 +14,7 @@ async function verifyBotCanMessage(bot, userId) {
 }
 
 async function sendLiveStarted(programId, bot, db) {
+  if (!bot) return;
   const { FieldValue } = require('firebase-admin/firestore');
   const doc = await db.collection('programs').doc(programId).get();
   if (!doc.exists) return;
@@ -93,6 +95,7 @@ function scheduleProgramChangeNotification(programId, bot, db) {
 }
 
 async function triggerProgramChangeNotification(programId, bot, db) {
+  if (!bot) return;
   const doc = await db.collection('programs').doc(programId).get();
   if (!doc.exists) return;
   const data = doc.data();
