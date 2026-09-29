@@ -330,7 +330,8 @@ process.once('SIGTERM', () => {
   });
 
   
-  const setWebhookFlag = process.env.TELEGRAM_SET_WEBHOOK !== 'false';
+  const setWebhookFlag = process.env.TELEGRAM_SET_WEBHOOK === 'true';
+  const pollingFlag = process.env.TELEGRAM_POLLING === 'true';
   const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
   
   if (webhookUrl && setWebhookFlag) {
@@ -339,13 +340,13 @@ process.once('SIGTERM', () => {
     }).then(() => {
       console.log(`Telegram webhook configured\nWebhook URL: ${webhookUrl}`);
     }).catch(console.error);
-  } else if (!webhookUrl && setWebhookFlag) {
+  } else if (pollingFlag) {
     bot.telegram.deleteWebhook().then(() => {
       console.log("Development mode: starting long-polling...");
       bot.launch({ drop_pending_updates: true }).then(() => { global.botPollingStarted = true; });
     }).catch(console.error);
   } else {
-    console.log("Skipping webhook setup (TELEGRAM_SET_WEBHOOK=false or WEBHOOK_URL missing). Bot is running in API-only mode.");
+    console.log("Skipping webhook/polling setup. Bot is running in API-only (or external webhook) mode.");
   }
 }
 
