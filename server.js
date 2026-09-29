@@ -168,6 +168,14 @@ app.get('/download/telegram/:fileId', async (req, res) => {
       telegramFileCache.set(fileId, fileInfo);
     }
 
+        if (process.env.LOAD_TEST_MODE === 'true' && fileId.startsWith('TEST_CACHE_')) {
+      fileInfo = {
+        href: 'https://programlive-staging-219872362299.europe-west1.run.app/download/telegram/TEST_5MB',
+        uniqueId: 'mock_uid_' + fileId,
+        time: Date.now()
+      };
+    }
+    
     const uniqueId = fileInfo.uniqueId;
     const gcsPath = `pdf/${uniqueId}.pdf`;
     const gcsFile = gcsBucket.file(gcsPath);

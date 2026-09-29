@@ -1,15 +1,16 @@
 const fs = require('fs');
 let code = fs.readFileSync('server.js', 'utf8');
 
-code = code.replace(
-  "content: { ...(s.items[index].content || {}), chords: updatedData.chords }",
-  "content: { ...(s.items[index].content || {}), chords: updatedData.chords }, attachments: updatedData.attachments || s.items[index].attachments || []"
-);
+const anchor = `const uniqueId = fileInfo.uniqueId;`;
+const newMock = `    if (process.env.LOAD_TEST_MODE === 'true' && fileId.startsWith('TEST_CACHE_')) {
+      fileInfo = {
+        href: 'https://programlive-staging-219872362299.europe-west1.run.app/download/telegram/TEST_5MB',
+        uniqueId: 'mock_uid_' + fileId,
+        time: Date.now()
+      };
+    }
+    
+    const uniqueId = fileInfo.uniqueId;`;
 
-code = code.replace(
-  "const newItem = { id: Date.now().toString(),",
-  "const newItem = { id: Date.now().toString(), attachments: itemData.attachments || [],"
-);
-
+code = code.replace(anchor, newMock);
 fs.writeFileSync('server.js', code);
-console.log("Patched server.js sockets successfully.");
