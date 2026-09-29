@@ -49,7 +49,7 @@ body {
 .role-toggle.admin-active { background: var(--tg-btn); color: var(--tg-btn-text); }
 
 /* ── TIMELINE (Minimalist) ── */
-.timeline { display: flex; flex-direction: column; gap: 8px; }
+.timeline { display: flex; flex-direction: column; }
 
 .item-card {
   background: var(--bg-card);
@@ -369,3 +369,7 @@ body {
 
 
 .hidden { display: none !important; }
+
+/* Fix for older WebViews that ignore flex gap */
+.item-card { margin-bottom: 12px; }
+.item-card:last-child { margin-bottom: 0; }
