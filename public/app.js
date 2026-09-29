@@ -578,6 +578,33 @@ function setEditType(type, titleToSet, forceShowTitle = false) {
   } else {
     titleGroup.style.display = 'none';
   }
+
+  const labelEl = document.getElementById('assigneeLabel');
+  if (labelEl) {
+    switch (type) {
+      case 'sermon':
+      case 'prayer':
+      case 'solo':
+        labelEl.innerText = "Ім'я";
+        els.editAssignee.placeholder = "Наприклад: О. Скрипник";
+        break;
+      case 'song':
+        labelEl.innerText = "Назва пісні";
+        els.editAssignee.placeholder = "Наприклад: Великий Бог";
+        break;
+      case 'ensemble':
+      case 'choir':
+      case 'orchestra':
+        labelEl.innerText = "Назва колективу";
+        els.editAssignee.placeholder = "Наприклад: Основний хор";
+        break;
+      case 'standard':
+      default:
+        labelEl.innerText = "Виконавець / Назва";
+        els.editAssignee.placeholder = "Введіть...";
+        break;
+    }
+  }
 }
 
 document.querySelectorAll('.type-btn').forEach(btn => {
