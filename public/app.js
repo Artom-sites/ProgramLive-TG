@@ -834,35 +834,38 @@ if (els.btnSubscribe) {
 function renderHomeProgramList(programs, listEl) {
   if (programs.length === 0) {
     listEl.innerHTML = `
-    <div style="text-align: center; color: var(--tg-hint); margin: 40px 20px;">
-      <div style="font-size: 48px; margin-bottom: 16px;">📂</div>
-      <h3 style="color: var(--tg-theme-text-color, #000); margin-bottom: 8px;">У вас ще немає програм</h3>
-      <p style="font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
+    <div style="text-align: center; color: var(--tg-hint); margin: 60px 20px;">
+      <div style="font-size: 64px; margin-bottom: 24px;">📂</div>
+      <h3 style="color: var(--tg-theme-text-color, #000); margin-bottom: 12px; font-size: 20px;">У вас ще немає програм</h3>
+      <p style="font-size: 15px; line-height: 1.5; margin-bottom: 32px; color: var(--tg-hint);">
         Створіть свою першу програму, щоб почати працювати з розкладом, додавати пункти та ноти.
       </p>
-      <button onclick="createProgramFromHome()" style="
-        background: var(--tg-theme-button-color, #3390ec);
-        color: var(--tg-theme-button-text-color, #fff);
-        border: none; border-radius: 8px;
-        padding: 12px 24px; font-size: 16px;
-        font-weight: 500; cursor: pointer;
-      ">➕ Створити програму</button>
+      <button onclick="createProgramFromHome()" class="btn-primary" style="width:100%; border-radius:14px; font-size:16px;">
+        <span style="margin-right:8px; font-size:18px;">➕</span> Створити програму
+      </button>
     </div>
   `;
     return;
   }
   listEl.innerHTML = programs.map(p => `
-    <div class="home-program-card" onclick="window.openProgram('${p.id}')" style="
-      background: var(--tg-theme-secondary-bg-color, #f5f5f5);
-      border-radius: 12px; padding: 16px; margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;
+    <div class="action-card" onclick="window.openProgram('${p.id}')" style="
+      margin-bottom: 12px; 
       display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 20px;
     ">
-      <div>
-        <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">🎼 ${p.title}</div>
-        <div style="font-size: 13px; color: var(--tg-hint);">${p.itemCount} пунктів</div>
+      <div style="display:flex; align-items:center; gap: 16px;">
+        <div style="width:48px; height:48px; border-radius:14px; background:var(--tg-btn); color:var(--tg-btn-text); display:flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+          📋
+        </div>
+        <div>
+          <div style="font-size: 17px; font-weight: 700; color: var(--tg-text); margin-bottom: 4px;">${p.title}</div>
+          <div style="font-size: 13px; color: var(--tg-hint); display:flex; align-items:center; gap:6px;">
+            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--tg-hint); opacity:0.5;"></span>
+            ${p.itemCount} пунктів
+          </div>
+        </div>
       </div>
-      ${p.isLive ? `<div style="background: red; color: white; font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px;">LIVE</div>` : ''}
+      ${p.isLive ? `<div style="background: rgba(239, 68, 68, 0.15); color: var(--c-danger); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 6px; letter-spacing: 0.5px;">LIVE</div>` : ''}
     </div>
   `).join('');
 }
@@ -884,13 +887,19 @@ function initHomeView() {
   homeDiv.style.display = 'block';
   
   homeDiv.innerHTML = `
-    <div style="padding: 20px; font-family: sans-serif; color: var(--tg-text);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="margin-top: 0; margin-bottom: 0;">Мої програми</h2>
-        
+    <div style="padding: 24px 20px; font-family: sans-serif; color: var(--tg-text); min-height: 100vh; display: flex; flex-direction: column;">
+      <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 28px;">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Мої програми</h1>
+        <div style="font-size: 14px; color: var(--tg-hint);">Керуйте розкладами та трансляціями</div>
       </div>
-      <div id="home-programs-list"></div>
-      <button class="btn-primary" style="width: 100%; margin-top: 20px; padding: 14px;" onclick="createProgramFromHome()">➕ Створити програму</button>
+      
+      <div id="home-programs-list" style="flex: 1;"></div>
+      
+      <div style="margin-top: 24px; position: sticky; bottom: 24px;">
+        <button class="btn-primary" style="width: 100%; padding: 16px; border-radius: 16px; font-size: 16px; box-shadow: 0 4px 16px rgba(51, 144, 236, 0.3); display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="createProgramFromHome()">
+          <span style="font-size: 20px;">➕</span> Створити програму
+        </button>
+      </div>
     </div>
   `;
   
