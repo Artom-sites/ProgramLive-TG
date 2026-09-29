@@ -16,7 +16,7 @@ try {
   } else if (process.env.FIREBASE_CREDENTIALS) {
     serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     console.log("Firebase key loaded from env var");
-  } else if (process.env.K_SERVICE === 'programlive-staging') {
+  } else if (process.env.K_SERVICE === 'programlive-staging' || process.env.K_SERVICE === 'programlive-prod') {
     useADC = true;
     console.log("Firebase using Cloud Run Application Default Credentials");
   } else {
