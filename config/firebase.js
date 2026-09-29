@@ -31,7 +31,7 @@ if (getApps().length === 0) {
   if (useADC) {
     const config = {
       credential: applicationDefault(),
-      projectId: 'programlive-staging'
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || 'programlive-tg-bot'
     };
     if (process.env.FIREBASE_STORAGE_BUCKET) {
       config.storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
